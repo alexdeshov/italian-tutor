@@ -128,6 +128,18 @@ startConversation(sessionId, systemPrompt)
 - `level_observation` (text) — комментарий о соответствии уровню
 - `created_at`
 
+**`api_usage`** — учёт расходов на внешние API
+- `id` (uuid, PK)
+- `profile_id` (uuid, FK → `profiles.id`)
+- `session_id` (uuid, FK → `sessions.id`, nullable — для будущих вызовов вне сессии)
+- `provider` (enum: `openai_whisper`, `openai_chat`, `anthropic_claude`, `elevenlabs_tts`)
+- `operation` (text) — `transcribe`, `respond`, `analyze`, `tts`
+- `model` (text, nullable)
+- `input_units` (numeric) — токены (LLM), секунды (Whisper), символы (ElevenLabs)
+- `output_units` (numeric) — токены ответа (LLM), 0 для остальных
+- `cost_usd` (numeric 10,6) — посчитан на момент вставки по `src/lib/pricing.ts`
+- `created_at` (timestamptz)
+
 ### Авторизация и RLS
 
 - Используется `auth.users` из Supabase
@@ -314,7 +326,16 @@ ELEVENLABS_VOICE_ID=...
 
 ---
 
-## 12. Принятые принципы
+## 12. Учёт расходов
+
+- Таблица `api_usage` логирует каждый вызов внешнего AI-сервиса (Whisper, GPT-4o, Claude Sonnet, ElevenLabs).
+- Цены централизованы в `src/lib/pricing.ts` — обновлять при изменении тарифов провайдеров.
+- Хелпер `src/lib/usage/logUsage.ts` никогда не бросает исключения — сбой учёта не должен ломать основной флоу.
+- Страница `/stats` показывает агрегаты: суммы за всё время / месяц / 7 дней, разбивку по провайдерам, таблицу последних 20 сессий с их стоимостью.
+
+---
+
+## 13. Принятые принципы
 
 - **Один пользователь = простая инфраструктура.** Никаких многопользовательских заморочек, биллинга, тарифов.
 - **Выделенный Supabase-проект.** Полная изоляция от других сервисов в том же аккаунте — нельзя случайно сломать соседний проект.

@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import OpenAI from 'openai'
 import { createClient } from '@/lib/supabase/server'
+import { logUsage } from '@/lib/usage/logUsage'
+import { calculateWhisperCost } from '@/lib/pricing'
 
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY })
 
@@ -19,6 +21,7 @@ export async function POST(request: NextRequest) {
   const formData = await request.formData()
   const file = formData.get('file') as File | null
   const sessionId = formData.get('sessionId') as string | null
+  const durationSeconds = parseFloat((formData.get('durationSeconds') as string | null) ?? '0')
 
   if (!file || !sessionId) {
     return NextResponse.json({ error: 'Missing file or sessionId' }, { status: 400 })
@@ -80,6 +83,17 @@ export async function POST(request: NextRequest) {
       { status: 500 },
     )
   }
+
+  // 8. Log usage
+  await logUsage(supabase, {
+    profileId: user.id,
+    sessionId,
+    provider: 'openai_whisper',
+    operation: 'transcribe',
+    model: 'whisper-1',
+    inputUnits: durationSeconds,
+    costUsd: calculateWhisperCost(durationSeconds),
+  })
 
   return NextResponse.json({ messageId, transcript, audioPath })
 }

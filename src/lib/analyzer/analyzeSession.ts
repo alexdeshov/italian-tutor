@@ -1,6 +1,8 @@
 import Anthropic from '@anthropic-ai/sdk'
 import { createClient } from '@/lib/supabase/server'
 import { buildAnalyzerSystemPrompt } from '@/lib/prompts/analyzer'
+import { logUsage } from '@/lib/usage/logUsage'
+import { calculateClaudeCost } from '@/lib/pricing'
 
 const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
 
@@ -30,6 +32,10 @@ export type AnalyzeResult =
 
 export async function analyzeSession(sessionId: string): Promise<AnalyzeResult> {
   const supabase = await createClient()
+
+  const {
+    data: { user },
+  } = await supabase.auth.getUser()
 
   // Fetch session + profile level (RLS ensures ownership)
   const { data: session } = await supabase
@@ -70,6 +76,8 @@ export async function analyzeSession(sessionId: string): Promise<AnalyzeResult> 
 
   // Call Claude Sonnet with forced tool use
   let analysis: AnalysisInput
+  let inputTokens = 0
+  let outputTokens = 0
   try {
     const response = await anthropic.messages.create({
       model: 'claude-sonnet-4-6',
@@ -121,6 +129,9 @@ export async function analyzeSession(sessionId: string): Promise<AnalyzeResult> 
       tool_choice: { type: 'tool', name: 'submit_analysis' },
     })
 
+    inputTokens = response.usage.input_tokens
+    outputTokens = response.usage.output_tokens
+
     const toolBlock = response.content.find((b) => b.type === 'tool_use')
     if (!toolBlock || toolBlock.type !== 'tool_use') {
       return { ok: false, error: 'Unexpected response from Claude' }
@@ -129,6 +140,20 @@ export async function analyzeSession(sessionId: string): Promise<AnalyzeResult> 
     analysis = toolBlock.input as AnalysisInput
   } catch (err) {
     return { ok: false, error: err instanceof Error ? err.message : 'Claude API error' }
+  }
+
+  // Log usage
+  if (user) {
+    await logUsage(supabase, {
+      profileId: user.id,
+      sessionId,
+      provider: 'anthropic_claude',
+      operation: 'analyze',
+      model: 'claude-sonnet-4-6',
+      inputUnits: inputTokens,
+      outputUnits: outputTokens,
+      costUsd: calculateClaudeCost('claude-sonnet-4-6', inputTokens, outputTokens),
+    })
   }
 
   // Insert errors

@@ -78,6 +78,7 @@ export function ConversationProvider({ sessionId, children }: Props) {
   const chunksRef = useRef<Blob[]>([])
   const mimeTypeRef = useRef<string | undefined>(undefined)
   const currentAudioRef = useRef<HTMLAudioElement | null>(null)
+  const recordingStartRef = useRef<number>(0)
 
   // Load existing messages on mount so a page refresh doesn't lose history.
   useEffect(() => {
@@ -153,7 +154,7 @@ export function ConversationProvider({ sessionId, children }: Props) {
 
   // Full pipeline: Whisper → add user msg → GPT-4o → add assistant msg → TTS → play.
   const sendToTranscribe = useCallback(
-    async (blob: Blob) => {
+    async (blob: Blob, durationSeconds: number) => {
       setState('transcribing')
       setError(null)
 
@@ -161,6 +162,7 @@ export function ConversationProvider({ sessionId, children }: Props) {
       const fd = new FormData()
       fd.set('file', blob, 'recording.webm')
       fd.set('sessionId', sessionId)
+      fd.set('durationSeconds', String(durationSeconds))
 
       let transcript: string
       let userMessageId: string
@@ -246,11 +248,13 @@ export function ConversationProvider({ sessionId, children }: Props) {
       }
 
       recorder.onstop = () => {
+        const durationSeconds = (Date.now() - recordingStartRef.current) / 1000
         const blob = new Blob(chunksRef.current, { type: mimeTypeRef.current })
-        sendToTranscribeRef.current(blob)
+        sendToTranscribeRef.current(blob, durationSeconds)
       }
 
       recorder.start()
+      recordingStartRef.current = Date.now()
       recorderRef.current = recorder
       setState('recording')
     } catch (err) {

@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server'
 import OpenAI from 'openai'
 import { createClient } from '@/lib/supabase/server'
 import { buildConversationPrompt } from '@/lib/prompts/conversation'
+import { logUsage } from '@/lib/usage/logUsage'
+import { calculateChatCost } from '@/lib/pricing'
 
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY })
 
@@ -57,6 +59,8 @@ export async function POST(request: NextRequest) {
 
   // 6. Call GPT-4o
   let content: string
+  let promptTokens = 0
+  let completionTokens = 0
   try {
     const completion = await openai.chat.completions.create({
       model: 'gpt-4o',
@@ -71,6 +75,8 @@ export async function POST(request: NextRequest) {
       max_tokens: 200,
     })
     content = completion.choices[0]?.message?.content?.trim() ?? ''
+    promptTokens = completion.usage?.prompt_tokens ?? 0
+    completionTokens = completion.usage?.completion_tokens ?? 0
   } catch (err) {
     const msg = err instanceof Error ? err.message : 'GPT-4o error'
     return NextResponse.json({ error: msg }, { status: 500 })
@@ -96,6 +102,18 @@ export async function POST(request: NextRequest) {
       { status: 500 },
     )
   }
+
+  // 8. Log usage
+  await logUsage(supabase, {
+    profileId: user.id,
+    sessionId,
+    provider: 'openai_chat',
+    operation: 'respond',
+    model: 'gpt-4o',
+    inputUnits: promptTokens,
+    outputUnits: completionTokens,
+    costUsd: calculateChatCost('gpt-4o', promptTokens, completionTokens),
+  })
 
   return NextResponse.json({ messageId, content })
 }

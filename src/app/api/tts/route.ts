@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
+import { logUsage } from '@/lib/usage/logUsage'
+import { calculateTtsCost } from '@/lib/pricing'
 
 export async function POST(request: NextRequest) {
   // 1. Auth
@@ -47,6 +49,17 @@ export async function POST(request: NextRequest) {
     const errText = await res.text()
     return NextResponse.json({ error: `ElevenLabs error: ${errText}` }, { status: 502 })
   }
+
+  // 4. Log usage
+  await logUsage(supabase, {
+    profileId: user.id,
+    sessionId: null,
+    provider: 'elevenlabs_tts',
+    operation: 'tts',
+    model: 'eleven_multilingual_v2',
+    inputUnits: text.length,
+    costUsd: calculateTtsCost(text.length),
+  })
 
   return new Response(res.body, {
     headers: { 'Content-Type': 'audio/mpeg' },
