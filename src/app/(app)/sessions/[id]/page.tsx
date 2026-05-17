@@ -38,7 +38,7 @@ export default async function SessionPage({ params }: Props) {
   const boundEndSession = endSession.bind(null, id)
 
   return (
-    <div className="max-w-md mx-auto py-10 px-4 space-y-6">
+    <div className="max-w-md mx-auto pt-10 pb-[max(2.5rem,env(safe-area-inset-bottom))] px-4 space-y-6">
       <div>
         <p className="text-xs text-muted-foreground uppercase tracking-wide mb-1">
           Тема

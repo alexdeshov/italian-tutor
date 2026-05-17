@@ -65,7 +65,7 @@ export default function LoginPage() {
 
   if (view === 'magic-sent') {
     return (
-      <div className="min-h-screen flex items-center justify-center">
+      <div className="min-h-dvh flex items-center justify-center">
         <div className="max-w-sm w-full space-y-3 text-center px-4">
           <h1 className="text-xl font-semibold">Проверь почту</h1>
           <p className="text-muted-foreground text-sm">
@@ -83,7 +83,7 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center">
+    <div className="min-h-dvh flex items-center justify-center">
       <div className="max-w-sm w-full space-y-6 px-4">
         <div className="space-y-1">
           <h1 className="text-2xl font-semibold">Italian Tutor</h1>

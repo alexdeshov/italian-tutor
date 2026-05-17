@@ -61,9 +61,10 @@ export function RecordButton() {
         onTouchStart={handleTouchStart}
         onTouchEnd={handleTouchEnd}
         onTouchCancel={handleTouchEnd}
+        style={{ WebkitTouchCallout: 'none' as const }}
         className={[
           'size-24 rounded-full flex items-center justify-center',
-          'select-none outline-none border-none cursor-pointer',
+          'select-none touch-manipulation outline-none border-none cursor-pointer',
           'transition-colors duration-150',
           'focus-visible:ring-4 focus-visible:ring-offset-2 focus-visible:ring-ring',
           'disabled:cursor-not-allowed disabled:opacity-50',

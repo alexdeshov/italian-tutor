@@ -38,7 +38,7 @@ export default function AppHeader({ email }: Props) {
   }
 
   return (
-    <header className="border-b bg-background sticky top-0 z-10">
+    <header className="border-b bg-background sticky top-0 z-10 pt-[env(safe-area-inset-top)]">
       <div className="max-w-4xl mx-auto px-4 h-14 flex items-center gap-2">
         <span className="font-semibold text-sm shrink-0 mr-3">Italian Tutor</span>
 

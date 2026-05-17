@@ -48,10 +48,25 @@ const ConversationContext = createContext<ConversationContextValue | null>(null)
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
-function getSupportedMimeType(): string | undefined {
-  const candidates = ['audio/webm;codecs=opus', 'audio/webm']
-  return candidates.find((t) => MediaRecorder.isTypeSupported(t))
+// iOS Safari supports audio/mp4 only; Chrome/Firefox prefer webm/opus.
+function getSupportedMimeType(): { mimeType: string; extension: string } {
+  const candidates = [
+    { mimeType: 'audio/webm;codecs=opus', extension: 'webm' },
+    { mimeType: 'audio/mp4', extension: 'm4a' },
+    { mimeType: 'audio/mp4;codecs=mp4a.40.2', extension: 'm4a' },
+    { mimeType: 'audio/webm', extension: 'webm' },
+  ]
+  for (const c of candidates) {
+    if (typeof MediaRecorder !== 'undefined' && MediaRecorder.isTypeSupported(c.mimeType)) {
+      return c
+    }
+  }
+  return { mimeType: '', extension: 'webm' } // let browser pick default
 }
+
+// Silent 1-frame WAV used to unlock iOS audio context on user gesture.
+const SILENT_WAV =
+  'data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEARKwAAIhYAQACABAAZGF0YQAAAAA='
 
 function describeMicError(err: unknown): string {
   if (err instanceof DOMException && err.name === 'NotAllowedError') {
@@ -76,9 +91,13 @@ export function ConversationProvider({ sessionId, children }: Props) {
   const streamRef = useRef<MediaStream | null>(null)
   const recorderRef = useRef<MediaRecorder | null>(null)
   const chunksRef = useRef<Blob[]>([])
-  const mimeTypeRef = useRef<string | undefined>(undefined)
-  const currentAudioRef = useRef<HTMLAudioElement | null>(null)
+  const mimeTypeRef = useRef<string>('')
+  const extensionRef = useRef<string>('webm')
   const recordingStartRef = useRef<number>(0)
+
+  // Single reused Audio element — pre-warmed on first user gesture to satisfy iOS autoplay policy.
+  const audioRef = useRef<HTMLAudioElement | null>(null)
+  const audioUnlockedRef = useRef(false)
 
   // Load existing messages on mount so a page refresh doesn't lose history.
   useEffect(() => {
@@ -93,13 +112,13 @@ export function ConversationProvider({ sessionId, children }: Props) {
       })
   }, [sessionId])
 
-  // Release mic and stop any playing audio when provider unmounts.
+  // Release mic and audio element when provider unmounts.
   useEffect(() => {
     return () => {
       streamRef.current?.getTracks().forEach((t) => t.stop())
-      if (currentAudioRef.current) {
-        currentAudioRef.current.pause()
-        currentAudioRef.current = null
+      if (audioRef.current) {
+        audioRef.current.pause()
+        audioRef.current.src = ''
       }
     }
   }, [])
@@ -112,7 +131,7 @@ export function ConversationProvider({ sessionId, children }: Props) {
     return stream
   }, [])
 
-  // POST text to /api/tts, play the returned audio, resolve when done.
+  // POST text to /api/tts, play via the persistent audio element, resolve when done.
   const speakText = useCallback(async (text: string): Promise<void> => {
     setState('speaking')
     try {
@@ -129,18 +148,18 @@ export function ConversationProvider({ sessionId, children }: Props) {
 
       const blob = await res.blob()
       const url = URL.createObjectURL(blob)
-      const audio = new Audio(url)
-      currentAudioRef.current = audio
+
+      if (!audioRef.current) audioRef.current = new Audio()
+      const audio = audioRef.current
+      audio.src = url
 
       await new Promise<void>((resolve) => {
         audio.onended = () => {
           URL.revokeObjectURL(url)
-          currentAudioRef.current = null
           resolve()
         }
         audio.onerror = () => {
           URL.revokeObjectURL(url)
-          currentAudioRef.current = null
           resolve()
         }
         audio.play().catch(() => resolve())
@@ -154,15 +173,16 @@ export function ConversationProvider({ sessionId, children }: Props) {
 
   // Full pipeline: Whisper → add user msg → GPT-4o → add assistant msg → TTS → play.
   const sendToTranscribe = useCallback(
-    async (blob: Blob, durationSeconds: number) => {
+    async (blob: Blob, durationSeconds: number, extension: string) => {
       setState('transcribing')
       setError(null)
 
       // Phase 1: transcription
       const fd = new FormData()
-      fd.set('file', blob, 'recording.webm')
+      fd.set('file', blob, `recording.${extension}`)
       fd.set('sessionId', sessionId)
       fd.set('durationSeconds', String(durationSeconds))
+      fd.set('extension', extension)
 
       let transcript: string
       let userMessageId: string
@@ -228,20 +248,26 @@ export function ConversationProvider({ sessionId, children }: Props) {
     if (state !== 'idle') return
     setError(null)
 
+    // Unlock audio playback on iOS — must happen inside a user gesture handler.
+    if (!audioUnlockedRef.current) {
+      if (!audioRef.current) audioRef.current = new Audio()
+      audioRef.current.src = SILENT_WAV
+      audioRef.current.play().catch(() => {}).finally(() => {
+        audioUnlockedRef.current = true
+      })
+    }
+
     try {
       const stream = await getStream()
 
-      const mimeType = getSupportedMimeType()
-      if (!mimeType) {
-        throw new Error(
-          'Ваш браузер не поддерживает запись в формате WebM. Попробуй Chrome или Firefox.',
-        )
-      }
-
+      const { mimeType, extension } = getSupportedMimeType()
       mimeTypeRef.current = mimeType
+      extensionRef.current = extension
       chunksRef.current = []
 
-      const recorder = new MediaRecorder(stream, { mimeType })
+      const recorder = mimeType
+        ? new MediaRecorder(stream, { mimeType })
+        : new MediaRecorder(stream)
 
       recorder.ondataavailable = (e) => {
         if (e.data.size > 0) chunksRef.current.push(e.data)
@@ -249,8 +275,10 @@ export function ConversationProvider({ sessionId, children }: Props) {
 
       recorder.onstop = () => {
         const durationSeconds = (Date.now() - recordingStartRef.current) / 1000
-        const blob = new Blob(chunksRef.current, { type: mimeTypeRef.current })
-        sendToTranscribeRef.current(blob, durationSeconds)
+        const blob = new Blob(chunksRef.current, {
+          type: mimeTypeRef.current || undefined,
+        })
+        sendToTranscribeRef.current(blob, durationSeconds, extensionRef.current)
       }
 
       recorder.start()

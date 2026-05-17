@@ -22,6 +22,8 @@ export async function POST(request: NextRequest) {
   const file = formData.get('file') as File | null
   const sessionId = formData.get('sessionId') as string | null
   const durationSeconds = parseFloat((formData.get('durationSeconds') as string | null) ?? '0')
+  const extension = (formData.get('extension') as string | null) ?? 'webm'
+  const contentType = extension === 'm4a' ? 'audio/mp4' : 'audio/webm'
 
   if (!file || !sessionId) {
     return NextResponse.json({ error: 'Missing file or sessionId' }, { status: 400 })
@@ -29,12 +31,12 @@ export async function POST(request: NextRequest) {
 
   // 3. Generate IDs and path
   const messageId = crypto.randomUUID()
-  const audioPath = `${user.id}/${sessionId}/${messageId}.webm`
+  const audioPath = `${user.id}/${sessionId}/${messageId}.${extension}`
 
   // 4. Upload to Supabase Storage
   const { error: uploadError } = await supabase.storage
     .from('audio')
-    .upload(audioPath, file, { contentType: 'audio/webm' })
+    .upload(audioPath, file, { contentType })
 
   if (uploadError) {
     return NextResponse.json(
