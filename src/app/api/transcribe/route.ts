@@ -23,7 +23,15 @@ export async function POST(request: NextRequest) {
   const sessionId = formData.get('sessionId') as string | null
   const durationSeconds = parseFloat((formData.get('durationSeconds') as string | null) ?? '0')
   const extension = (formData.get('extension') as string | null) ?? 'webm'
-  const contentType = extension === 'm4a' ? 'audio/mp4' : 'audio/webm'
+  const mimeType = (formData.get('mimeType') as string | null) ?? (extension === 'm4a' ? 'audio/mp4' : 'audio/webm')
+
+  console.log('[transcribe] file:', {
+    size: file?.size,
+    type: file?.type,
+    name: file?.name,
+    declaredMimeType: mimeType,
+    declaredExtension: extension,
+  })
 
   if (!file || !sessionId) {
     return NextResponse.json({ error: 'Missing file or sessionId' }, { status: 400 })
@@ -36,7 +44,7 @@ export async function POST(request: NextRequest) {
   // 4. Upload to Supabase Storage
   const { error: uploadError } = await supabase.storage
     .from('audio')
-    .upload(audioPath, file, { contentType })
+    .upload(audioPath, file, { contentType: mimeType })
 
   if (uploadError) {
     return NextResponse.json(
