@@ -2,6 +2,7 @@ import Link from 'next/link'
 import { notFound } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import { buttonVariants } from '@/components/ui/button'
+import { formatDuration, formatCost } from '@/lib/format'
 import { AnalyzeButton } from './AnalyzeButton'
 
 type Props = { params: Promise<{ id: string }> }
@@ -36,7 +37,7 @@ export default async function SummaryPage({ params }: Props) {
 
   if (!session) notFound()
 
-  const [{ data: summary }, { data: errors }] = await Promise.all([
+  const [{ data: summary }, { data: errors }, { data: usageRows }] = await Promise.all([
     supabase
       .from('summaries')
       .select('overall_comment, useful_vocabulary, level_observation')
@@ -47,6 +48,7 @@ export default async function SummaryPage({ params }: Props) {
       .select('id, original_quote, correction, explanation_ru, error_type')
       .eq('session_id', id)
       .order('created_at', { ascending: true }),
+    supabase.from('api_usage').select('cost_usd').eq('session_id', id),
   ])
 
   const date = new Date(session.started_at).toLocaleDateString('ru-RU', {
@@ -55,12 +57,11 @@ export default async function SummaryPage({ params }: Props) {
     year: 'numeric',
   })
 
-  const durationMin = session.ended_at
-    ? Math.round(
-        (new Date(session.ended_at).getTime() - new Date(session.started_at).getTime()) /
-          60_000,
-      )
+  const durationSec = session.ended_at
+    ? (new Date(session.ended_at).getTime() - new Date(session.started_at).getTime()) / 1000
     : null
+
+  const totalCost = (usageRows ?? []).reduce((sum, r) => sum + Number(r.cost_usd), 0)
 
   const vocab = summary ? (summary.useful_vocabulary as VocabItem[] | null) ?? [] : []
 
@@ -68,21 +69,21 @@ export default async function SummaryPage({ params }: Props) {
     <div className="max-w-2xl mx-auto py-10 px-4 space-y-8">
       {/* Header */}
       <div className="flex items-start justify-between gap-4">
-        <div>
-          <p className="text-xs text-muted-foreground uppercase tracking-wide mb-1">Тема</p>
+        <div className="space-y-1">
+          <p className="text-xs text-muted-foreground uppercase tracking-wide">Тема</p>
           <h1 className="text-xl font-semibold">{session.topic}</h1>
-          <p className="text-sm text-muted-foreground mt-1">
+          <p className="text-sm text-muted-foreground">
             {date}
-            {durationMin != null ? ` · ${durationMin} мин` : ''}
+            {durationSec != null ? ` · ${formatDuration(durationSec)}` : ''}
+            {totalCost > 0 ? ` · ${formatCost(totalCost)}` : ''}
           </p>
         </div>
-        <Link href="/profile" className={buttonVariants({ variant: 'outline', size: 'sm' })}>
-          ← Профиль
+        <Link href="/sessions" className={buttonVariants({ variant: 'outline', size: 'sm' })}>
+          ← История
         </Link>
       </div>
 
       {!summary ? (
-        /* No analysis yet */
         <div className="rounded-lg border border-border p-8 flex flex-col items-center gap-4 text-center">
           <p className="text-muted-foreground text-sm">
             Анализ ещё не завершён или произошла ошибка.
@@ -127,9 +128,7 @@ export default async function SummaryPage({ params }: Props) {
                     <p className="text-sm italic text-muted-foreground">
                       «{err.original_quote}»
                     </p>
-                    <p className="text-sm font-semibold text-emerald-600">
-                      → {err.correction}
-                    </p>
+                    <p className="text-sm font-semibold text-emerald-600">→ {err.correction}</p>
                     <p className="text-sm">{err.explanation_ru}</p>
                   </div>
                 ))}

@@ -38,14 +38,11 @@ export default async function ProfilePage() {
       </div>
 
       <div className="pt-4 border-t flex flex-wrap gap-3">
-        <Link href="/sessions/new" className={buttonVariants()}>
-          Начать новую сессию
+        <Link href="/sessions/new" className={buttonVariants({ variant: 'outline' })}>
+          Новая сессия
         </Link>
         <Link href="/sessions" className={buttonVariants({ variant: 'outline' })}>
-          История сессий
-        </Link>
-        <Link href="/stats" className={buttonVariants({ variant: 'outline' })}>
-          Статистика расходов
+          История
         </Link>
       </div>
     </div>
