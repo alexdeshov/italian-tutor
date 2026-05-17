@@ -1,8 +1,10 @@
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
+import { ConversationProvider } from '@/lib/conversation/ConversationProvider'
 import { endSession } from '../actions'
 import { Button, buttonVariants } from '@/components/ui/button'
+import { SessionClient } from './session-client'
 
 type Props = { params: Promise<{ id: string }> }
 
@@ -43,15 +45,17 @@ export default async function SessionPage({ params }: Props) {
         <h1 className="text-xl font-semibold">{session.topic}</h1>
       </div>
 
-      <div className="rounded-md border px-4 py-3 text-sm text-muted-foreground">
-        Сессия активна — здесь скоро появится голосовой интерфейс.
-      </div>
+      <ConversationProvider>
+        <SessionClient />
+      </ConversationProvider>
 
-      <form action={boundEndSession}>
-        <Button type="submit" variant="destructive">
-          Завершить сессию
-        </Button>
-      </form>
+      <div className="pt-2 border-t">
+        <form action={boundEndSession}>
+          <Button type="submit" variant="destructive">
+            Завершить сессию
+          </Button>
+        </form>
+      </div>
     </div>
   )
 }
