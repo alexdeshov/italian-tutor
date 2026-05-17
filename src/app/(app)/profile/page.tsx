@@ -1,6 +1,8 @@
+import Link from 'next/link'
 import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import { ProfileForm } from './profile-form'
+import { buttonVariants } from '@/components/ui/button'
 
 export default async function ProfilePage() {
   const supabase = await createClient()
@@ -25,13 +27,24 @@ export default async function ProfilePage() {
   }
 
   return (
-    <div className="max-w-md mx-auto py-10 px-4">
-      <h1 className="text-xl font-semibold mb-6">Profile</h1>
-      <ProfileForm
-        email={user.email!}
-        initialName={profile.name}
-        initialLevel={profile.italian_level}
-      />
+    <div className="max-w-md mx-auto py-10 px-4 space-y-8">
+      <div>
+        <h1 className="text-xl font-semibold mb-6">Профиль</h1>
+        <ProfileForm
+          email={user.email!}
+          initialName={profile.name}
+          initialLevel={profile.italian_level}
+        />
+      </div>
+
+      <div className="pt-4 border-t flex gap-3">
+        <Link href="/sessions/new" className={buttonVariants()}>
+          Начать новую сессию
+        </Link>
+        <Link href="/sessions" className={buttonVariants({ variant: 'outline' })}>
+          История сессий
+        </Link>
+      </div>
     </div>
   )
 }
