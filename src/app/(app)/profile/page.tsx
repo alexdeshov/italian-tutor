@@ -2,6 +2,7 @@ import Link from 'next/link'
 import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import { ProfileForm } from './profile-form'
+import { LogoutButton } from './LogoutButton'
 import { buttonVariants } from '@/components/ui/button'
 
 export default async function ProfilePage() {
@@ -44,6 +45,7 @@ export default async function ProfilePage() {
         <Link href="/sessions" className={buttonVariants({ variant: 'outline' })}>
           История
         </Link>
+        <LogoutButton />
       </div>
     </div>
   )
