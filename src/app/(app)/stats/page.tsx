@@ -188,77 +188,120 @@ export default async function StatsPage() {
         {sessionList.length === 0 ? (
           <p className="text-sm text-muted-foreground">Сессий пока нет.</p>
         ) : (
-          <div className="rounded-lg border border-border overflow-hidden">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="border-b border-border bg-muted/40">
-                  <th className="text-left px-4 py-2.5 font-medium text-muted-foreground">
-                    Дата
-                  </th>
-                  <th className="text-left px-4 py-2.5 font-medium text-muted-foreground">
-                    Тема
-                  </th>
-                  <th className="text-right px-4 py-2.5 font-medium text-muted-foreground">
-                    Длит.
-                  </th>
-                  <th className="text-right px-4 py-2.5 font-medium text-muted-foreground">
-                    Стоимость
-                  </th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-border">
-                {sessionList.map((s) => {
-                  const durationMin = s.ended_at
-                    ? Math.round(
-                        (new Date(s.ended_at).getTime() - new Date(s.started_at).getTime()) /
-                          60_000,
-                      )
-                    : null
-                  const cost = costBySession[s.id] ?? 0
-                  const href =
-                    s.status === 'active' ? `/sessions/${s.id}` : `/sessions/${s.id}/summary`
+          <>
+            {/* ── Desktop table ──────────────────────────────────────────────── */}
+            <div className="hidden md:block rounded-lg border border-border overflow-hidden">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b border-border bg-muted/40">
+                    <th className="text-left px-4 py-2.5 font-medium text-muted-foreground">
+                      Дата
+                    </th>
+                    <th className="text-left px-4 py-2.5 font-medium text-muted-foreground">
+                      Тема
+                    </th>
+                    <th className="text-right px-4 py-2.5 font-medium text-muted-foreground">
+                      Длит.
+                    </th>
+                    <th className="text-right px-4 py-2.5 font-medium text-muted-foreground">
+                      Стоимость
+                    </th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-border">
+                  {sessionList.map((s) => {
+                    const durationMin = s.ended_at
+                      ? Math.round(
+                          (new Date(s.ended_at).getTime() - new Date(s.started_at).getTime()) /
+                            60_000,
+                        )
+                      : null
+                    const cost = costBySession[s.id] ?? 0
+                    const href =
+                      s.status === 'active' ? `/sessions/${s.id}` : `/sessions/${s.id}/summary`
 
-                  return (
-                    <tr key={s.id} className="hover:bg-muted/30 transition-colors">
-                      <td className="px-4 py-3 text-muted-foreground whitespace-nowrap">
-                        <Link href={href} className="block">
-                          {new Date(s.started_at).toLocaleDateString('ru-RU', {
-                            day: 'numeric',
-                            month: 'short',
-                          })}
-                        </Link>
-                      </td>
-                      <td className="px-4 py-3 max-w-[180px] truncate">
-                        <Link href={href} className="block" title={s.topic}>
-                          {s.topic}
-                        </Link>
-                      </td>
-                      <td className="px-4 py-3 text-right text-muted-foreground">
-                        <Link href={href} className="block">
-                          {durationMin != null ? `${durationMin} мин` : '—'}
-                        </Link>
-                      </td>
-                      <td className="px-4 py-3 text-right">
-                        <Link href={href} className="block">
-                          {cost > 0 ? fmtCost(cost) : '—'}
-                        </Link>
-                      </td>
-                    </tr>
-                  )
-                })}
-              </tbody>
-              <tfoot>
-                <tr className="border-t border-border bg-muted/40">
-                  <td colSpan={3} className="px-4 py-2.5 text-xs text-muted-foreground">
-                    Средняя стоимость сессии
-                  </td>
-                  <td className="px-4 py-2.5 text-sm font-medium text-right tabular-nums">
-                    {fmtCost(avgSessionCost)}
-                  </td>
-                </tr>
-              </tfoot>
-            </table>
-          </div>
+                    return (
+                      <tr key={s.id} className="hover:bg-muted/30 transition-colors">
+                        <td className="px-4 py-3 text-muted-foreground whitespace-nowrap">
+                          <Link href={href} className="block">
+                            {new Date(s.started_at).toLocaleDateString('ru-RU', {
+                              day: 'numeric',
+                              month: 'short',
+                            })}
+                          </Link>
+                        </td>
+                        <td className="px-4 py-3 max-w-[180px] truncate">
+                          <Link href={href} className="block" title={s.topic}>
+                            {s.topic}
+                          </Link>
+                        </td>
+                        <td className="px-4 py-3 text-right text-muted-foreground">
+                          <Link href={href} className="block">
+                            {durationMin != null ? `${durationMin} мин` : '—'}
+                          </Link>
+                        </td>
+                        <td className="px-4 py-3 text-right">
+                          <Link href={href} className="block">
+                            {cost > 0 ? fmtCost(cost) : '—'}
+                          </Link>
+                        </td>
+                      </tr>
+                    )
+                  })}
+                </tbody>
+                <tfoot>
+                  <tr className="border-t border-border bg-muted/40">
+                    <td colSpan={3} className="px-4 py-2.5 text-xs text-muted-foreground">
+                      Средняя стоимость сессии
+                    </td>
+                    <td className="px-4 py-2.5 text-sm font-medium text-right tabular-nums">
+                      {fmtCost(avgSessionCost)}
+                    </td>
+                  </tr>
+                </tfoot>
+              </table>
+            </div>
+
+            {/* ── Mobile cards ───────────────────────────────────────────────── */}
+            <div className="md:hidden space-y-2">
+              {sessionList.map((s) => {
+                const durationMin = s.ended_at
+                  ? Math.round(
+                      (new Date(s.ended_at).getTime() - new Date(s.started_at).getTime()) /
+                        60_000,
+                    )
+                  : null
+                const cost = costBySession[s.id] ?? 0
+                const href =
+                  s.status === 'active' ? `/sessions/${s.id}` : `/sessions/${s.id}/summary`
+
+                const meta = [
+                  new Date(s.started_at).toLocaleDateString('ru-RU', {
+                    day: 'numeric',
+                    month: 'short',
+                  }),
+                  durationMin != null ? `${durationMin} мин` : null,
+                  cost > 0 ? fmtCost(cost) : null,
+                ]
+                  .filter(Boolean)
+                  .join(' · ')
+
+                return (
+                  <Link
+                    key={s.id}
+                    href={href}
+                    className="block rounded-lg border border-border p-3 hover:bg-muted/30 transition-colors active:bg-muted/50"
+                  >
+                    <p className="text-sm font-medium truncate">{s.topic}</p>
+                    <p className="text-xs text-muted-foreground mt-1">{meta}</p>
+                  </Link>
+                )
+              })}
+              <p className="text-xs text-muted-foreground px-1">
+                Средняя стоимость: {fmtCost(avgSessionCost)}
+              </p>
+            </div>
+          </>
         )}
       </section>
     </div>

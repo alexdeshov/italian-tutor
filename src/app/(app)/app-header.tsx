@@ -2,6 +2,7 @@
 
 import Link from 'next/link'
 import { useRouter, usePathname } from 'next/navigation'
+import { LogOut } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { Button, buttonVariants } from '@/components/ui/button'
 
@@ -40,7 +41,7 @@ export default function AppHeader({ email }: Props) {
   return (
     <header className="border-b bg-background sticky top-0 z-10 pt-[env(safe-area-inset-top)]">
       <div className="max-w-4xl mx-auto px-4 h-14 flex items-center gap-2">
-        <span className="font-semibold text-sm shrink-0 mr-3">Italian Tutor</span>
+        <span className="font-semibold text-sm shrink-0 mr-3 hidden sm:block">Italian Tutor</span>
 
         <nav className="flex items-center gap-1">
           <Link href="/sessions/new" className={buttonVariants({ size: 'sm' })}>
@@ -60,8 +61,9 @@ export default function AppHeader({ email }: Props) {
             {email}
           </span>
         )}
-        <Button variant="ghost" size="sm" onClick={handleLogout}>
-          Выйти
+        <Button variant="ghost" size="sm" onClick={handleLogout} aria-label="Выйти">
+          <LogOut className="size-4 sm:hidden" aria-hidden />
+          <span className="hidden sm:inline">Выйти</span>
         </Button>
       </div>
     </header>

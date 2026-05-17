@@ -22,7 +22,7 @@ export function SessionClient() {
       )}
 
       {messages.length > 0 && (
-        <div className="space-y-2 max-h-72 overflow-y-auto pr-1">
+        <div className="space-y-2 max-h-72 overflow-y-auto pr-1 pb-32 md:pb-0">
           {messages.map((msg) => (
             <div
               key={msg.id}
@@ -46,7 +46,7 @@ export function SessionClient() {
                   type="button"
                   disabled={state !== 'idle'}
                   onClick={() => speakText(msg.content)}
-                  className="shrink-0 p-1 text-muted-foreground hover:text-foreground disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                  className="shrink-0 p-2.5 -m-2.5 touch-manipulation text-muted-foreground hover:text-foreground disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
                   aria-label="Прослушать снова"
                 >
                   <Volume2 className="size-4" />
@@ -58,7 +58,17 @@ export function SessionClient() {
         </div>
       )}
 
-      <div className="flex justify-center py-8">
+      {/* Fixed bottom panel on mobile, static on desktop */}
+      <div
+        className={[
+          'fixed bottom-0 left-0 right-0 z-30',
+          'md:static md:bottom-auto md:left-auto md:right-auto',
+          'p-4 pb-[max(1rem,env(safe-area-inset-bottom))] md:p-0',
+          'bg-background md:bg-transparent',
+          'border-t md:border-t-0',
+          'flex items-center justify-center',
+        ].join(' ')}
+      >
         <RecordButton />
       </div>
     </div>

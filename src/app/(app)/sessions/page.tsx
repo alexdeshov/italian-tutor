@@ -82,90 +82,143 @@ export default async function SessionsPage() {
         </div>
       ) : (
         <>
-          <div className="rounded-lg border border-border overflow-hidden">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="border-b border-border bg-muted/40">
-                  <th className="text-left px-4 py-3 font-medium text-muted-foreground whitespace-nowrap">
-                    Дата
-                  </th>
-                  <th className="text-left px-4 py-3 font-medium text-muted-foreground">Тема</th>
-                  <th className="px-4 py-3 font-medium text-muted-foreground text-center">
-                    Статус
-                  </th>
-                  <th className="text-right px-4 py-3 font-medium text-muted-foreground whitespace-nowrap">
-                    Длит.
-                  </th>
-                  <th className="text-right px-4 py-3 font-medium text-muted-foreground whitespace-nowrap">
-                    Ошибок
-                  </th>
-                  <th className="text-right px-4 py-3 font-medium text-muted-foreground whitespace-nowrap">
-                    Стоимость
-                  </th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-border">
-                {sessionList.map((s) => {
-                  const durationSec =
-                    s.ended_at != null
-                      ? (new Date(s.ended_at).getTime() - new Date(s.started_at).getTime()) / 1000
-                      : null
-                  const errorCount = errorCountMap.get(s.id)
-                  const cost = costMap.get(s.id) ?? 0
-                  const href =
-                    s.status === 'active' ? `/sessions/${s.id}` : `/sessions/${s.id}/summary`
+          {/* ── Desktop table ────────────────────────────────────────────────── */}
+          <div className="hidden md:block space-y-3">
+            <div className="rounded-lg border border-border overflow-hidden">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b border-border bg-muted/40">
+                    <th className="text-left px-4 py-3 font-medium text-muted-foreground whitespace-nowrap">
+                      Дата
+                    </th>
+                    <th className="text-left px-4 py-3 font-medium text-muted-foreground">Тема</th>
+                    <th className="px-4 py-3 font-medium text-muted-foreground text-center">
+                      Статус
+                    </th>
+                    <th className="text-right px-4 py-3 font-medium text-muted-foreground whitespace-nowrap">
+                      Длит.
+                    </th>
+                    <th className="text-right px-4 py-3 font-medium text-muted-foreground whitespace-nowrap">
+                      Ошибок
+                    </th>
+                    <th className="text-right px-4 py-3 font-medium text-muted-foreground whitespace-nowrap">
+                      Стоимость
+                    </th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-border">
+                  {sessionList.map((s) => {
+                    const durationSec =
+                      s.ended_at != null
+                        ? (new Date(s.ended_at).getTime() - new Date(s.started_at).getTime()) /
+                          1000
+                        : null
+                    const errorCount = errorCountMap.get(s.id)
+                    const cost = costMap.get(s.id) ?? 0
+                    const href =
+                      s.status === 'active' ? `/sessions/${s.id}` : `/sessions/${s.id}/summary`
 
-                  return (
-                    <tr
-                      key={s.id}
-                      className="hover:bg-muted/30 transition-colors cursor-pointer"
-                    >
-                      <td className="px-4 py-3 text-muted-foreground whitespace-nowrap">
-                        <Link href={href} className="block">
-                          {formatDate(s.started_at)}
-                        </Link>
-                      </td>
-                      <td className="px-4 py-3 max-w-[220px]">
-                        <Link href={href} className="block truncate" title={s.topic}>
-                          {truncate(s.topic, 60)}
-                        </Link>
-                      </td>
-                      <td className="px-4 py-3 text-center">
-                        <Link href={href} className="block">
-                          <span
-                            className={[
-                              'inline-block text-xs font-medium px-2 py-0.5 rounded-full',
-                              STATUS_CLASS[s.status] ?? 'bg-muted text-muted-foreground',
-                            ].join(' ')}
-                          >
-                            {STATUS_LABEL[s.status] ?? s.status}
-                          </span>
-                        </Link>
-                      </td>
-                      <td className="px-4 py-3 text-right text-muted-foreground">
-                        <Link href={href} className="block">
-                          {durationSec != null ? formatDuration(durationSec) : '—'}
-                        </Link>
-                      </td>
-                      <td className="px-4 py-3 text-right text-muted-foreground">
-                        <Link href={href} className="block">
-                          {s.status === 'completed' ? (errorCount ?? 0) : '—'}
-                        </Link>
-                      </td>
-                      <td className="px-4 py-3 text-right">
-                        <Link href={href} className="block">
-                          {cost > 0 ? formatCost(cost) : '—'}
-                        </Link>
-                      </td>
-                    </tr>
-                  )
-                })}
-              </tbody>
-            </table>
+                    return (
+                      <tr
+                        key={s.id}
+                        className="hover:bg-muted/30 transition-colors cursor-pointer"
+                      >
+                        <td className="px-4 py-3 text-muted-foreground whitespace-nowrap">
+                          <Link href={href} className="block">
+                            {formatDate(s.started_at)}
+                          </Link>
+                        </td>
+                        <td className="px-4 py-3 max-w-[220px]">
+                          <Link href={href} className="block truncate" title={s.topic}>
+                            {truncate(s.topic, 60)}
+                          </Link>
+                        </td>
+                        <td className="px-4 py-3 text-center">
+                          <Link href={href} className="block">
+                            <span
+                              className={[
+                                'inline-block text-xs font-medium px-2 py-0.5 rounded-full',
+                                STATUS_CLASS[s.status] ?? 'bg-muted text-muted-foreground',
+                              ].join(' ')}
+                            >
+                              {STATUS_LABEL[s.status] ?? s.status}
+                            </span>
+                          </Link>
+                        </td>
+                        <td className="px-4 py-3 text-right text-muted-foreground">
+                          <Link href={href} className="block">
+                            {durationSec != null ? formatDuration(durationSec) : '—'}
+                          </Link>
+                        </td>
+                        <td className="px-4 py-3 text-right text-muted-foreground">
+                          <Link href={href} className="block">
+                            {s.status === 'completed' ? (errorCount ?? 0) : '—'}
+                          </Link>
+                        </td>
+                        <td className="px-4 py-3 text-right">
+                          <Link href={href} className="block">
+                            {cost > 0 ? formatCost(cost) : '—'}
+                          </Link>
+                        </td>
+                      </tr>
+                    )
+                  })}
+                </tbody>
+              </table>
+            </div>
+            <p className="text-xs text-muted-foreground text-center">
+              Показаны последние 50 сессий
+            </p>
           </div>
-          <p className="text-xs text-muted-foreground text-center">
-            Показаны последние 50 сессий
-          </p>
+
+          {/* ── Mobile cards ─────────────────────────────────────────────────── */}
+          <div className="md:hidden space-y-3">
+            {sessionList.map((s) => {
+              const durationSec =
+                s.ended_at != null
+                  ? (new Date(s.ended_at).getTime() - new Date(s.started_at).getTime()) / 1000
+                  : null
+              const errorCount = errorCountMap.get(s.id)
+              const cost = costMap.get(s.id) ?? 0
+              const href =
+                s.status === 'active' ? `/sessions/${s.id}` : `/sessions/${s.id}/summary`
+
+              const meta = [
+                formatDate(s.started_at),
+                durationSec != null ? formatDuration(durationSec) : null,
+                s.status === 'completed' ? `ошибок: ${errorCount ?? 0}` : null,
+                cost > 0 ? formatCost(cost) : null,
+              ]
+                .filter(Boolean)
+                .join(' · ')
+
+              return (
+                <Link
+                  key={s.id}
+                  href={href}
+                  className="block rounded-lg border border-border p-4 hover:bg-muted/30 transition-colors active:bg-muted/50"
+                >
+                  <div className="flex items-start justify-between gap-2">
+                    <p className="font-medium text-sm truncate flex-1">{truncate(s.topic, 60)}</p>
+                    {s.status !== 'completed' && (
+                      <span
+                        className={[
+                          'shrink-0 text-xs font-medium px-2 py-0.5 rounded-full',
+                          STATUS_CLASS[s.status] ?? 'bg-muted text-muted-foreground',
+                        ].join(' ')}
+                      >
+                        {STATUS_LABEL[s.status] ?? s.status}
+                      </span>
+                    )}
+                  </div>
+                  <p className="text-xs text-muted-foreground mt-1.5">{meta}</p>
+                </Link>
+              )
+            })}
+            <p className="text-xs text-muted-foreground text-center">
+              Показаны последние 50 сессий
+            </p>
+          </div>
         </>
       )}
     </div>

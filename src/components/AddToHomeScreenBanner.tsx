@@ -37,7 +37,7 @@ export function AddToHomeScreenBanner() {
         </div>
         <button
           onClick={dismiss}
-          className="text-muted-foreground hover:text-foreground touch-manipulation px-2 py-1 shrink-0"
+          className="text-muted-foreground hover:text-foreground touch-manipulation p-2.5 -m-2.5 shrink-0"
           aria-label="Закрыть"
         >
           ✕
