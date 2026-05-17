@@ -1,9 +1,10 @@
 import Link from 'next/link'
-import { notFound } from 'next/navigation'
+import { notFound, redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import { buttonVariants } from '@/components/ui/button'
 import { formatDuration, formatCost } from '@/lib/format'
 import { AnalyzeButton } from './AnalyzeButton'
+import { AnalysisRunner } from './AnalysisRunner'
 
 type Props = { params: Promise<{ id: string }> }
 
@@ -36,6 +37,7 @@ export default async function SummaryPage({ params }: Props) {
     .single()
 
   if (!session) notFound()
+  if (session.status !== 'completed') redirect(`/sessions/${id}`)
 
   const [{ data: summary }, { data: errors }, { data: usageRows }] = await Promise.all([
     supabase
@@ -84,12 +86,7 @@ export default async function SummaryPage({ params }: Props) {
       </div>
 
       {!summary ? (
-        <div className="rounded-lg border border-border p-8 flex flex-col items-center gap-4 text-center">
-          <p className="text-muted-foreground text-sm">
-            Анализ ещё не завершён или произошла ошибка.
-          </p>
-          <AnalyzeButton sessionId={id} label="Запустить анализ" />
-        </div>
+        <AnalysisRunner sessionId={id} />
       ) : (
         <>
           {/* Overall comment */}

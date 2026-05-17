@@ -3,8 +3,9 @@ import { notFound } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import { ConversationProvider } from '@/lib/conversation/ConversationProvider'
 import { endSession } from '../actions'
-import { Button, buttonVariants } from '@/components/ui/button'
+import { buttonVariants } from '@/components/ui/button'
 import { SessionClient } from './session-client'
+import { EndSessionButton } from './EndSessionButton'
 
 type Props = { params: Promise<{ id: string }> }
 
@@ -51,9 +52,7 @@ export default async function SessionPage({ params }: Props) {
 
       <div className="pt-2 border-t">
         <form action={boundEndSession}>
-          <Button type="submit" variant="destructive">
-            Завершить сессию
-          </Button>
+          <EndSessionButton />
         </form>
       </div>
     </div>
