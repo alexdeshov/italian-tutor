@@ -13,7 +13,13 @@ import { createClient } from '@/lib/supabase/client'
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
-export type ConversationState = 'idle' | 'recording' | 'transcribing' | 'error'
+export type ConversationState =
+  | 'idle'
+  | 'recording'
+  | 'transcribing'
+  | 'thinking'
+  | 'speaking'
+  | 'error'
 
 export type Message = {
   id: string
@@ -27,12 +33,9 @@ export interface ConversationContextValue {
   messages: Message[]
   startRecording: () => Promise<void>
   stopRecording: () => void
+  speakText: (text: string) => Promise<void>
 
   // ── Future: high-level pipeline API ────────────────────────────────────────
-  // Stubs — will replace startRecording/stopRecording in phase 5
-  // (Whisper → GPT-4o → ElevenLabs full pipeline, or realtime swap).
-  // UI must call ONLY these so that swapping the underlying transport
-  // requires zero changes above the provider boundary.
   startConversation: (sessionId: string, systemPrompt: string) => Promise<void>
   onTranscript: ((role: 'user' | 'assistant', text: string) => void) | null
   onAudioChunk: ((buffer: ArrayBuffer) => void) | null
@@ -74,6 +77,7 @@ export function ConversationProvider({ sessionId, children }: Props) {
   const recorderRef = useRef<MediaRecorder | null>(null)
   const chunksRef = useRef<Blob[]>([])
   const mimeTypeRef = useRef<string | undefined>(undefined)
+  const currentAudioRef = useRef<HTMLAudioElement | null>(null)
 
   // Load existing messages on mount so a page refresh doesn't lose history.
   useEffect(() => {
@@ -88,10 +92,14 @@ export function ConversationProvider({ sessionId, children }: Props) {
       })
   }, [sessionId])
 
-  // Release mic tracks when provider unmounts.
+  // Release mic and stop any playing audio when provider unmounts.
   useEffect(() => {
     return () => {
       streamRef.current?.getTracks().forEach((t) => t.stop())
+      if (currentAudioRef.current) {
+        currentAudioRef.current.pause()
+        currentAudioRef.current = null
+      }
     }
   }, [])
 
@@ -103,40 +111,112 @@ export function ConversationProvider({ sessionId, children }: Props) {
     return stream
   }, [])
 
-  // POST blob to /api/transcribe, append result to messages state.
+  // POST text to /api/tts, play the returned audio, resolve when done.
+  const speakText = useCallback(async (text: string): Promise<void> => {
+    setState('speaking')
+    try {
+      const res = await fetch('/api/tts', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ text }),
+      })
+
+      if (!res.ok) {
+        const data = await res.json()
+        throw new Error(data.error ?? 'Ошибка синтеза речи')
+      }
+
+      const blob = await res.blob()
+      const url = URL.createObjectURL(blob)
+      const audio = new Audio(url)
+      currentAudioRef.current = audio
+
+      await new Promise<void>((resolve) => {
+        audio.onended = () => {
+          URL.revokeObjectURL(url)
+          currentAudioRef.current = null
+          resolve()
+        }
+        audio.onerror = () => {
+          URL.revokeObjectURL(url)
+          currentAudioRef.current = null
+          resolve()
+        }
+        audio.play().catch(() => resolve())
+      })
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Ошибка воспроизведения.')
+    } finally {
+      setState('idle')
+    }
+  }, [])
+
+  // Full pipeline: Whisper → add user msg → GPT-4o → add assistant msg → TTS → play.
   const sendToTranscribe = useCallback(
     async (blob: Blob) => {
       setState('transcribing')
       setError(null)
 
+      // Phase 1: transcription
       const fd = new FormData()
       fd.set('file', blob, 'recording.webm')
       fd.set('sessionId', sessionId)
 
+      let transcript: string
+      let userMessageId: string
       try {
         const res = await fetch('/api/transcribe', { method: 'POST', body: fd })
         const data: { messageId?: string; transcript?: string; error?: string } =
           await res.json()
 
-        if (!res.ok) {
-          throw new Error(data.error ?? 'Ошибка транскрипции')
-        }
+        if (!res.ok) throw new Error(data.error ?? 'Ошибка транскрипции')
 
+        userMessageId = data.messageId!
+        transcript = data.transcript!
         setMessages((prev) => [
           ...prev,
-          { id: data.messageId!, role: 'user', content: data.transcript! },
+          { id: userMessageId, role: 'user', content: transcript },
         ])
       } catch (err) {
         setError(err instanceof Error ? err.message : 'Ошибка при отправке записи.')
-      } finally {
         setState('idle')
+        return
       }
+
+      // Phase 2: GPT-4o response
+      setState('thinking')
+      let botContent: string
+      let botMessageId: string
+      try {
+        const res = await fetch('/api/respond', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ sessionId }),
+        })
+        const data: { messageId?: string; content?: string; error?: string } =
+          await res.json()
+
+        if (!res.ok) throw new Error(data.error ?? 'Ошибка получения ответа')
+
+        botMessageId = data.messageId!
+        botContent = data.content!
+        setMessages((prev) => [
+          ...prev,
+          { id: botMessageId, role: 'assistant', content: botContent },
+        ])
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'Ошибка при получении ответа бота.')
+        setState('idle')
+        return
+      }
+
+      // Phase 3: TTS + playback (speakText sets 'speaking' then 'idle')
+      await speakText(botContent)
     },
-    [sessionId],
+    [sessionId, speakText],
   )
 
-  // Use a ref so that MediaRecorder.onstop always calls the latest version
-  // of sendToTranscribe even if sessionId or the callback itself changed.
+  // Use a ref so MediaRecorder.onstop always calls the latest sendToTranscribe.
   const sendToTranscribeRef = useRef(sendToTranscribe)
   useEffect(() => {
     sendToTranscribeRef.current = sendToTranscribe
@@ -167,7 +247,6 @@ export function ConversationProvider({ sessionId, children }: Props) {
 
       recorder.onstop = () => {
         const blob = new Blob(chunksRef.current, { type: mimeTypeRef.current })
-        // onstop is synchronous; kick off the async pipeline via ref
         sendToTranscribeRef.current(blob)
       }
 
@@ -202,6 +281,7 @@ export function ConversationProvider({ sessionId, children }: Props) {
         messages,
         startRecording,
         stopRecording,
+        speakText,
         startConversation,
         onTranscript: null,
         onAudioChunk: null,
