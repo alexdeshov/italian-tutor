@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
+import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
 import { updateProfile } from './actions'
 import { Button } from '@/components/ui/button'
@@ -93,10 +94,18 @@ export function ProfileForm({ email, initialName, initialLevel }: Props) {
         )}
       </div>
 
-      <div className="pt-4 border-t">
+      <div className="pt-4 border-t space-y-3">
         <Button type="button" variant="outline" onClick={handleLogout}>
           Logout
         </Button>
+        <div>
+          <Link
+            href="/profile/password"
+            className="text-xs text-muted-foreground hover:text-foreground underline underline-offset-4"
+          >
+            Изменить пароль
+          </Link>
+        </div>
       </div>
     </form>
   )

@@ -1,3 +1,11 @@
+// Verified against @supabase/ssr v0.10 pattern:
+// - updateSession handles cookie refresh and returns supabaseResponse
+// - Redirect for unauthenticated users is safe: if getUser() refreshed a
+//   token, the user would be non-null and we'd return supabaseResponse, not
+//   the redirect. So no refreshed cookies are ever lost in the redirect path.
+// - All server components create their own client per-request via createClient()
+//   (each call to cookies() gets the fresh per-request store).
+
 import { type NextRequest, NextResponse } from 'next/server'
 import { updateSession } from '@/lib/supabase/middleware'
 
