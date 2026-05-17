@@ -1,14 +1,35 @@
 'use client'
 
 import Link from 'next/link'
-import { useRouter } from 'next/navigation'
+import { useRouter, usePathname } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { Button, buttonVariants } from '@/components/ui/button'
 
 type Props = { email: string }
 
+const NAV_LINKS = [
+  { href: '/sessions', label: 'История' },
+  { href: '/stats', label: 'Статистика' },
+  { href: '/profile', label: 'Профиль' },
+] as const
+
 export default function AppHeader({ email }: Props) {
   const router = useRouter()
+  const pathname = usePathname()
+
+  function isActive(href: string): boolean {
+    if (href === '/sessions/new') return pathname === '/sessions/new'
+    if (href === '/sessions')
+      return pathname.startsWith('/sessions') && pathname !== '/sessions/new'
+    return pathname === href || pathname.startsWith(href + '/')
+  }
+
+  function navClass(href: string): string {
+    const base = buttonVariants({ variant: 'ghost', size: 'sm' })
+    return isActive(href)
+      ? `${base} bg-accent text-accent-foreground font-medium`
+      : `${base} text-muted-foreground`
+  }
 
   async function handleLogout() {
     const supabase = createClient()
@@ -25,15 +46,11 @@ export default function AppHeader({ email }: Props) {
           <Link href="/sessions/new" className={buttonVariants({ size: 'sm' })}>
             + Сессия
           </Link>
-          <Link href="/sessions" className={buttonVariants({ variant: 'ghost', size: 'sm' })}>
-            История
-          </Link>
-          <Link href="/stats" className={buttonVariants({ variant: 'ghost', size: 'sm' })}>
-            Статистика
-          </Link>
-          <Link href="/profile" className={buttonVariants({ variant: 'ghost', size: 'sm' })}>
-            Профиль
-          </Link>
+          {NAV_LINKS.map(({ href, label }) => (
+            <Link key={href} href={href} className={navClass(href)}>
+              {label}
+            </Link>
+          ))}
         </nav>
 
         <div className="flex-1" />
