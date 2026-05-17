@@ -2,6 +2,7 @@
 
 import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
+import { analyzeSession } from '@/lib/analyzer/analyzeSession'
 
 export async function createSession(formData: FormData) {
   const topic = (formData.get('topic') as string | null)?.trim() ?? ''
@@ -40,6 +41,9 @@ export async function endSession(sessionId: string) {
     .eq('id', sessionId)
 
   if (error) throw new Error(error.message)
+
+  // Run analysis; if it fails we still redirect — summary page handles missing data gracefully
+  await analyzeSession(sessionId)
 
   redirect(`/sessions/${sessionId}/summary`)
 }
