@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react'
 import { createClient } from '@/lib/supabase/server'
 import AppHeader from './app-header'
+import { AddToHomeScreenBanner } from '@/components/AddToHomeScreenBanner'
 
 export default async function AppLayout({ children }: { children: ReactNode }) {
   const supabase = await createClient()
@@ -12,6 +13,7 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
     <>
       <AppHeader email={user?.email ?? ''} />
       <main>{children}</main>
+      <AddToHomeScreenBanner />
     </>
   )
 }
