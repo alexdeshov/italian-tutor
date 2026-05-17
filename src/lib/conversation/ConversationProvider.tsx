@@ -9,24 +9,30 @@ import {
   useState,
   type ReactNode,
 } from 'react'
+import { createClient } from '@/lib/supabase/client'
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
-export type ConversationState = 'idle' | 'recording' | 'playing' | 'error'
+export type ConversationState = 'idle' | 'recording' | 'transcribing' | 'error'
+
+export type Message = {
+  id: string
+  role: 'user' | 'assistant'
+  content: string
+}
 
 export interface ConversationContextValue {
-  // Current phase: manual push-to-talk
   state: ConversationState
   error: string | null
-  lastAudioBlob: Blob | null
+  messages: Message[]
   startRecording: () => Promise<void>
   stopRecording: () => void
-  notifyPlaybackEnd: () => void
 
   // ── Future: high-level pipeline API ────────────────────────────────────────
-  // Stubs — will be wired up in phase 4 (Whisper → GPT-4o → ElevenLabs).
-  // UI code above this provider must call ONLY these methods so that
-  // swapping to realtime (WebSocket) requires no changes in UI components.
+  // Stubs — will replace startRecording/stopRecording in phase 5
+  // (Whisper → GPT-4o → ElevenLabs full pipeline, or realtime swap).
+  // UI must call ONLY these so that swapping the underlying transport
+  // requires zero changes above the provider boundary.
   startConversation: (sessionId: string, systemPrompt: string) => Promise<void>
   onTranscript: ((role: 'user' | 'assistant', text: string) => void) | null
   onAudioChunk: ((buffer: ArrayBuffer) => void) | null
@@ -44,7 +50,7 @@ function getSupportedMimeType(): string | undefined {
   return candidates.find((t) => MediaRecorder.isTypeSupported(t))
 }
 
-function describeError(err: unknown): string {
+function describeMicError(err: unknown): string {
   if (err instanceof DOMException && err.name === 'NotAllowedError') {
     return 'Доступ к микрофону необходим для тренировки. Разреши в настройках браузера.'
   }
@@ -57,30 +63,84 @@ function describeError(err: unknown): string {
 
 // ─── Provider ────────────────────────────────────────────────────────────────
 
-export function ConversationProvider({ children }: { children: ReactNode }) {
+type Props = { sessionId: string; children: ReactNode }
+
+export function ConversationProvider({ sessionId, children }: Props) {
   const [state, setState] = useState<ConversationState>('idle')
   const [error, setError] = useState<string | null>(null)
-  const [lastAudioBlob, setLastAudioBlob] = useState<Blob | null>(null)
+  const [messages, setMessages] = useState<Message[]>([])
 
   const streamRef = useRef<MediaStream | null>(null)
   const recorderRef = useRef<MediaRecorder | null>(null)
   const chunksRef = useRef<Blob[]>([])
   const mimeTypeRef = useRef<string | undefined>(undefined)
 
-  // Release mic tracks when provider unmounts
+  // Load existing messages on mount so a page refresh doesn't lose history.
+  useEffect(() => {
+    const supabase = createClient()
+    supabase
+      .from('messages')
+      .select('id, role, content')
+      .eq('session_id', sessionId)
+      .order('created_at', { ascending: true })
+      .then(({ data }) => {
+        if (data) setMessages(data as Message[])
+      })
+  }, [sessionId])
+
+  // Release mic tracks when provider unmounts.
   useEffect(() => {
     return () => {
       streamRef.current?.getTracks().forEach((t) => t.stop())
     }
   }, [])
 
-  // Acquire mic stream (cached after first request)
+  // Acquire mic stream (cached — permission dialog shows only once per mount).
   const getStream = useCallback(async (): Promise<MediaStream> => {
     if (streamRef.current) return streamRef.current
     const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
     streamRef.current = stream
     return stream
   }, [])
+
+  // POST blob to /api/transcribe, append result to messages state.
+  const sendToTranscribe = useCallback(
+    async (blob: Blob) => {
+      setState('transcribing')
+      setError(null)
+
+      const fd = new FormData()
+      fd.set('file', blob, 'recording.webm')
+      fd.set('sessionId', sessionId)
+
+      try {
+        const res = await fetch('/api/transcribe', { method: 'POST', body: fd })
+        const data: { messageId?: string; transcript?: string; error?: string } =
+          await res.json()
+
+        if (!res.ok) {
+          throw new Error(data.error ?? 'Ошибка транскрипции')
+        }
+
+        setMessages((prev) => [
+          ...prev,
+          { id: data.messageId!, role: 'user', content: data.transcript! },
+        ])
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'Ошибка при отправке записи.')
+      } finally {
+        setState('idle')
+      }
+    },
+    [sessionId],
+  )
+
+  // Use a ref so that MediaRecorder.onstop always calls the latest version
+  // of sendToTranscribe even if sessionId or the callback itself changed.
+  const sendToTranscribeRef = useRef(sendToTranscribe)
+  useEffect(() => {
+    sendToTranscribeRef.current = sendToTranscribe
+  }, [sendToTranscribe])
 
   const startRecording = useCallback(async () => {
     if (state !== 'idle') return
@@ -95,6 +155,7 @@ export function ConversationProvider({ children }: { children: ReactNode }) {
           'Ваш браузер не поддерживает запись в формате WebM. Попробуй Chrome или Firefox.',
         )
       }
+
       mimeTypeRef.current = mimeType
       chunksRef.current = []
 
@@ -106,15 +167,15 @@ export function ConversationProvider({ children }: { children: ReactNode }) {
 
       recorder.onstop = () => {
         const blob = new Blob(chunksRef.current, { type: mimeTypeRef.current })
-        setLastAudioBlob(blob)
-        setState('playing')
+        // onstop is synchronous; kick off the async pipeline via ref
+        sendToTranscribeRef.current(blob)
       }
 
       recorder.start()
       recorderRef.current = recorder
       setState('recording')
     } catch (err) {
-      setError(describeError(err))
+      setError(describeMicError(err))
       setState('error')
     }
   }, [state, getStream])
@@ -125,16 +186,10 @@ export function ConversationProvider({ children }: { children: ReactNode }) {
     }
   }, [])
 
-  const notifyPlaybackEnd = useCallback(() => {
-    setState('idle')
-  }, [])
-
   // ── Future stubs ────────────────────────────────────────────────────────────
-  // Replace these when implementing the full Whisper → GPT-4o → ElevenLabs pipeline.
-  // The stub signature must stay stable so UI components need zero changes.
   const startConversation = useCallback(
     async (_sessionId: string, _systemPrompt: string): Promise<void> => {
-      /* stub — will orchestrate full turn-based or realtime pipeline */
+      /* stub — will orchestrate Whisper → GPT-4o → ElevenLabs, or realtime */
     },
     [],
   )
@@ -144,10 +199,9 @@ export function ConversationProvider({ children }: { children: ReactNode }) {
       value={{
         state,
         error,
-        lastAudioBlob,
+        messages,
         startRecording,
         stopRecording,
-        notifyPlaybackEnd,
         startConversation,
         onTranscript: null,
         onAudioChunk: null,

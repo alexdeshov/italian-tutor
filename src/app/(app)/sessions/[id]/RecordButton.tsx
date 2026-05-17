@@ -1,14 +1,14 @@
 'use client'
 
-import { Mic, Square } from 'lucide-react'
+import { Loader2, Mic, Square } from 'lucide-react'
 import { useConversation } from '@/lib/conversation/ConversationProvider'
 
 export function RecordButton() {
   const { state, startRecording, stopRecording } = useConversation()
 
   const isRecording = state === 'recording'
-  const isPlaying = state === 'playing'
-  const isDisabled = isPlaying || state === 'error'
+  const isTranscribing = state === 'transcribing'
+  const isDisabled = isTranscribing || state === 'error'
 
   function handleStart() {
     if (!isDisabled) startRecording()
@@ -18,8 +18,6 @@ export function RecordButton() {
     if (isRecording) stopRecording()
   }
 
-  // Touch events: preventDefault stops the browser from also firing
-  // synthetic mouse events, which would call handleStart/Stop twice.
   function handleTouchStart(e: React.TouchEvent) {
     e.preventDefault()
     handleStart()
@@ -32,8 +30,8 @@ export function RecordButton() {
 
   const label = isRecording
     ? 'Запись… (отпусти чтобы остановить)'
-    : isPlaying
-      ? 'Воспроизведение…'
+    : isTranscribing
+      ? 'Распознаю…'
       : 'Удерживай для записи'
 
   return (
@@ -56,13 +54,15 @@ export function RecordButton() {
           'disabled:cursor-not-allowed disabled:opacity-50',
           isRecording
             ? 'bg-red-500 text-white animate-pulse'
-            : isPlaying
+            : isTranscribing
               ? 'bg-muted text-muted-foreground'
               : 'bg-primary text-primary-foreground hover:bg-primary/90',
         ].join(' ')}
       >
         {isRecording ? (
           <Square className="size-8 fill-current" />
+        ) : isTranscribing ? (
+          <Loader2 className="size-8 animate-spin" />
         ) : (
           <Mic className="size-8" />
         )}

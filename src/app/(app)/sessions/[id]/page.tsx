@@ -45,7 +45,7 @@ export default async function SessionPage({ params }: Props) {
         <h1 className="text-xl font-semibold">{session.topic}</h1>
       </div>
 
-      <ConversationProvider>
+      <ConversationProvider sessionId={id}>
         <SessionClient />
       </ConversationProvider>
 
