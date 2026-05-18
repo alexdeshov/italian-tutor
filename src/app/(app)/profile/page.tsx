@@ -1,9 +1,10 @@
 import Link from 'next/link'
 import { redirect } from 'next/navigation'
+import { TrendingUp, Receipt } from 'lucide-react'
 import { createClient } from '@/lib/supabase/server'
 import { ProfileForm } from './profile-form'
 import { LogoutButton } from './LogoutButton'
-import { buttonVariants } from '@/components/ui/button'
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 
 export default async function ProfilePage() {
   const supabase = await createClient()
@@ -38,13 +39,40 @@ export default async function ProfilePage() {
         />
       </div>
 
-      <div className="pt-4 border-t flex flex-wrap gap-3">
-        <Link href="/sessions/new" className={buttonVariants({ variant: 'outline' })}>
-          Новая сессия
+      {/* Navigation cards */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <Link href="/progress" className="block">
+          <Card className="hover:bg-accent transition-colors h-full cursor-pointer">
+            <CardHeader className="pb-2">
+              <div className="flex items-center gap-2">
+                <TrendingUp className="size-4 text-foreground" />
+                <CardTitle className="text-base">Прогресс</CardTitle>
+              </div>
+            </CardHeader>
+            <CardContent>
+              <p className="text-sm text-muted-foreground">
+                Распределение и повторяющиеся ошибки
+              </p>
+            </CardContent>
+          </Card>
         </Link>
-        <Link href="/sessions" className={buttonVariants({ variant: 'outline' })}>
-          История
+
+        <Link href="/stats" className="block">
+          <Card className="hover:bg-accent transition-colors h-full cursor-pointer">
+            <CardHeader className="pb-2">
+              <div className="flex items-center gap-2">
+                <Receipt className="size-4 text-foreground" />
+                <CardTitle className="text-base">Расходы</CardTitle>
+              </div>
+            </CardHeader>
+            <CardContent>
+              <p className="text-sm text-muted-foreground">Статистика по API провайдерам</p>
+            </CardContent>
+          </Card>
         </Link>
+      </div>
+
+      <div className="pt-2 border-t flex flex-wrap gap-3">
         <LogoutButton />
       </div>
     </div>
