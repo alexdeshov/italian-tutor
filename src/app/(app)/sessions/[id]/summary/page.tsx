@@ -3,12 +3,24 @@ import { notFound, redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import { buttonVariants } from '@/components/ui/button'
 import { formatDuration, formatCost } from '@/lib/format'
+import { AudioPlayer } from '@/components/AudioPlayer'
 import { AnalyzeButton } from './AnalyzeButton'
 import { AnalysisRunner } from './AnalysisRunner'
+import { cn } from '@/lib/utils'
 
 type Props = { params: Promise<{ id: string }> }
 
 type VocabItem = { italian: string; russian: string; note?: string }
+
+type RawMessage = {
+  id: string
+  role: string
+  content: string
+  audio_path: string | null
+  created_at: string
+}
+
+type MessageWithAudio = RawMessage & { audioUrl: string | null }
 
 const ERROR_TYPE_LABEL: Record<string, string> = {
   grammar: 'Грамматика',
@@ -39,19 +51,35 @@ export default async function SummaryPage({ params }: Props) {
   if (!session) notFound()
   if (session.status !== 'completed') redirect(`/sessions/${id}`)
 
-  const [{ data: summary }, { data: errors }, { data: usageRows }] = await Promise.all([
-    supabase
-      .from('summaries')
-      .select('overall_comment, useful_vocabulary, level_observation')
-      .eq('session_id', id)
-      .maybeSingle(),
-    supabase
-      .from('errors')
-      .select('id, original_quote, correction, explanation_ru, error_type')
-      .eq('session_id', id)
-      .order('created_at', { ascending: true }),
-    supabase.from('api_usage').select('cost_usd').eq('session_id', id),
-  ])
+  const [{ data: summary }, { data: errors }, { data: usageRows }, { data: rawMessages }] =
+    await Promise.all([
+      supabase
+        .from('summaries')
+        .select('overall_comment, useful_vocabulary, level_observation')
+        .eq('session_id', id)
+        .maybeSingle(),
+      supabase
+        .from('errors')
+        .select('id, original_quote, correction, explanation_ru, error_type')
+        .eq('session_id', id)
+        .order('created_at', { ascending: true }),
+      supabase.from('api_usage').select('cost_usd').eq('session_id', id),
+      supabase
+        .from('messages')
+        .select('id, role, content, audio_path, created_at')
+        .eq('session_id', id)
+        .order('created_at', { ascending: true }),
+    ])
+
+  // Generate signed URLs for user messages that have audio (valid 1 hour).
+  // audio_path may be null if the lifecycle job already cleaned it up.
+  const messagesWithAudio: MessageWithAudio[] = await Promise.all(
+    ((rawMessages ?? []) as RawMessage[]).map(async (m) => {
+      if (m.role !== 'user' || !m.audio_path) return { ...m, audioUrl: null }
+      const { data } = await supabase.storage.from('audio').createSignedUrl(m.audio_path, 3600)
+      return { ...m, audioUrl: data?.signedUrl ?? null }
+    }),
+  )
 
   const date = new Date(session.started_at).toLocaleDateString('ru-RU', {
     day: 'numeric',
@@ -160,6 +188,30 @@ export default async function SummaryPage({ params }: Props) {
             <AnalyzeButton sessionId={id} label="Переанализировать" />
           </div>
         </>
+      )}
+
+      {/* Transcript — shown always (independent of analysis state) */}
+      {messagesWithAudio.length > 0 && (
+        <details className="border border-border rounded-lg">
+          <summary className="cursor-pointer px-4 py-3 text-sm font-medium select-none list-none flex items-center justify-between">
+            <span>Полный транскрипт ({messagesWithAudio.length} реплик)</span>
+            <span className="text-muted-foreground text-xs">▼</span>
+          </summary>
+          <div className="px-4 pb-4 space-y-3 border-t border-border mt-0 pt-3">
+            {messagesWithAudio.map((m) => (
+              <div
+                key={m.id}
+                className={cn(
+                  'rounded-lg p-3',
+                  m.role === 'user' ? 'bg-primary/10 ml-8 md:ml-12' : 'bg-muted mr-8 md:mr-12',
+                )}
+              >
+                <p className="text-sm">{m.content}</p>
+                {m.audioUrl && <AudioPlayer src={m.audioUrl} />}
+              </div>
+            ))}
+          </div>
+        </details>
       )}
     </div>
   )

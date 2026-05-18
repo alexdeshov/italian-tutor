@@ -6,6 +6,7 @@ import { endSession } from '../actions'
 import { buttonVariants } from '@/components/ui/button'
 import { SessionClient } from './session-client'
 import { EndSessionButton } from './EndSessionButton'
+import { SessionTimer } from './SessionTimer'
 
 type Props = { params: Promise<{ id: string }> }
 
@@ -39,11 +40,14 @@ export default async function SessionPage({ params }: Props) {
 
   return (
     <div className="max-w-md mx-auto pt-10 pb-[max(2.5rem,env(safe-area-inset-bottom))] px-4 space-y-6">
-      <div>
-        <p className="text-xs text-muted-foreground uppercase tracking-wide mb-1">
-          Тема
-        </p>
-        <h1 className="text-xl font-semibold">{session.topic}</h1>
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <p className="text-xs text-muted-foreground uppercase tracking-wide mb-1">
+            Тема
+          </p>
+          <h1 className="text-xl font-semibold">{session.topic}</h1>
+        </div>
+        <SessionTimer sessionId={id} startedAt={session.started_at} />
       </div>
 
       <ConversationProvider sessionId={id}>

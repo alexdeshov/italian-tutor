@@ -3,10 +3,12 @@
 import { useEffect, useRef } from 'react'
 import { Volume2 } from 'lucide-react'
 import { useConversation } from '@/lib/conversation/ConversationProvider'
+import { useWakeLock } from '@/hooks/useWakeLock'
 import { RecordButton } from './RecordButton'
 
 export function SessionClient() {
   const { messages, error, state, speakText } = useConversation()
+  useWakeLock(true)
   const messagesEndRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
