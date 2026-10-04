@@ -15,7 +15,7 @@ export async function POST(request: NextRequest) {
   }
 
   // 2. Parse body
-  const { text } = await request.json()
+  const { text, sessionId } = await request.json()
   if (!text || typeof text !== 'string') {
     return NextResponse.json({ error: 'Missing text' }, { status: 400 })
   }
@@ -53,7 +53,8 @@ export async function POST(request: NextRequest) {
   // 4. Log usage
   await logUsage(supabase, {
     profileId: user.id,
-    sessionId: null,
+    // Attributed to the session so per-session cost includes TTS (the biggest cost item)
+    sessionId: typeof sessionId === 'string' ? sessionId : null,
     provider: 'elevenlabs_tts',
     operation: 'tts',
     model: 'eleven_multilingual_v2',

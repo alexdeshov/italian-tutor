@@ -14,9 +14,12 @@ export async function proxy(request: NextRequest) {
 
   const { pathname } = request.nextUrl
 
-  // (auth) routes and auth callback are always public
+  // (auth) routes and auth callback are always public.
+  // Cron routes carry no user session — they authenticate via CRON_SECRET themselves.
   const isPublic =
-    pathname.startsWith('/login') || pathname.startsWith('/auth/')
+    pathname.startsWith('/login') ||
+    pathname.startsWith('/auth/') ||
+    pathname.startsWith('/api/cron/')
 
   if (!user && !isPublic) {
     const url = request.nextUrl.clone()

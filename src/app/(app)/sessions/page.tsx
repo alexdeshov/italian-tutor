@@ -41,8 +41,8 @@ export default async function SessionsPage() {
   const sessionList = (sessions ?? []) as Session[]
   const sessionIds = sessionList.map((s) => s.id)
 
-  let errorCountMap = new Map<string, number>()
-  let costMap = new Map<string, number>()
+  const errorCountMap = new Map<string, number>()
+  const costMap = new Map<string, number>()
 
   if (sessionIds.length > 0) {
     const [{ data: errorsData }, { data: usageData }] = await Promise.all([

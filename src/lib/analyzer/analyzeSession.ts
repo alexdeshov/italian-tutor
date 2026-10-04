@@ -58,10 +58,6 @@ export async function analyzeSession(sessionId: string): Promise<AnalyzeResult> 
     return { ok: false, error: 'Сессия слишком короткая для анализа' }
   }
 
-  // Clear any previous analysis (idempotent — supports re-analysis)
-  await supabase.from('errors').delete().eq('session_id', sessionId)
-  await supabase.from('summaries').delete().eq('session_id', sessionId)
-
   // Build transcript
   const transcript = messages
     .map((m) => `${m.role === 'user' ? 'Student' : 'Partner'}: ${m.content}`)
@@ -155,6 +151,11 @@ export async function analyzeSession(sessionId: string): Promise<AnalyzeResult> 
       costUsd: calculateClaudeCost('claude-sonnet-4-6', inputTokens, outputTokens),
     })
   }
+
+  // Clear any previous analysis only now that the new one succeeded — if Claude
+  // fails, re-analysis keeps the old result instead of leaving the session empty.
+  await supabase.from('errors').delete().eq('session_id', sessionId)
+  await supabase.from('summaries').delete().eq('session_id', sessionId)
 
   // Insert errors
   if (analysis.errors.length > 0) {

@@ -153,7 +153,7 @@ startConversation(sessionId, systemPrompt)
 
 - Bucket `audio` (private)
 - Структура: `{profile_id}/{session_id}/{message_id}.{webm|m4a}` — расширение зависит от клиентского кодека (iOS пишет m4a, остальные webm)
-- Lifecycle policy: TBD (хранится бессрочно сейчас)
+- Lifecycle: записи старше 90 дней удаляются ежедневным Vercel Cron (`/api/cron/cleanup-audio`) через Storage API, `audio_path` в `messages` обнуляется
 
 ---
 
@@ -185,6 +185,9 @@ OPENAI_API_KEY=sk-...
 ANTHROPIC_API_KEY=sk-ant-...
 ELEVENLABS_API_KEY=...
 ELEVENLABS_VOICE_ID=...
+
+# Vercel Cron (Vercel подставляет в Authorization: Bearer ...)
+CRON_SECRET=...
 ```
 
 В Vercel те же переменные нужно прописать в **Project Settings → Environment Variables** перед первым деплоем.
@@ -205,7 +208,7 @@ ELEVENLABS_VOICE_ID=...
 
 ## 6. Пользовательский поток
 
-1. **Логин** через Supabase Auth (magic link на почту)
+1. **Логин** через Supabase Auth (email + пароль; magic link как резерв)
 2. **Профиль:** просмотр/изменение CEFR-уровня
 3. **Старт сессии:** страница со свободным полем «О чём поговорим?» (тема вводится текстом). Бот ничего не инициирует — после нажатия «Начать» пользователь сам делает первую реплику
 4. **Активная сессия:** кнопка записи (push-to-talk), отображение текущего транскрипта (опционально), кнопка «Завершить и получить разбор»
@@ -325,6 +328,8 @@ ELEVENLABS_VOICE_ID=...
 
 - [x] **Пакет 1 — критичные фиксы.** Динамический выбор кодека (mp4 для iOS, webm для остальных), pre-warmed Audio для unlock'а autoplay, viewport-fit=cover, safe-area-inset, 100dvh вместо 100vh, touch-стили на кнопке записи, 16px шрифт на инпутах
 - [x] **Пакет 2 — PWA.** manifest.json, иконки (180/192/512), apple-mobile-web-app meta-теги, баннер «Add to Home Screen» для iOS Safari, скрипт генерации иконок через sharp
+- [x] **Пакет 3 — Мобильный UI.** Карточки вместо таблиц на узких экранах, touch targets ≥44pt, кнопка записи фиксирована снизу. Icon-above-label nav grid на мобиле.
+- [ ] **Пакет 4 — Финальный полирок.** Хаптика на push-to-talk, prefers-reduced-motion
 
 ### Деплой
 
@@ -332,20 +337,14 @@ ELEVENLABS_VOICE_ID=...
 - [x] Все переменные окружения в Vercel (Production + Preview + Development)
 - [x] Supabase URL Configuration обновлён (Site URL + Redirect URLs)
 - [x] `maxDuration = 60` на `/api/analyze-session` для Fluid Compute
+- [x] `CRON_SECRET` в Vercel env — им Vercel подписывает вызовы cron-роутов
 
 ### Прикладные улучшения
 
 - [x] **Wake Lock во время сессии.** `useWakeLock` хук на Screen Wake Lock API, переподключается после backgrounding. iOS Safari 16.4+.
 - [x] **Переслушать user-реплику.** На summary-странице — коллапсируемый транскрипт с AudioPlayer на каждой user-реплике; signed URL 1ч, `preload="none"`.
 - [x] **Лимит на длину сессии.** `SessionTimer`: 25 мин — банер-предупреждение, 45 мин — автозавершение через `endSession()` + редирект на summary.
-- [x] **Lifecycle policy для аудио.** `0003_audio_lifecycle.sql`: pg_cron-задача ежедневно в 03:00 UTC удаляет записи старше 90 дней из Storage и обнуляет `audio_path` в messages.
-
-### iOS-поддержка
-
-- [x] **Пакет 1 — критичные фиксы.** Динамический выбор кодека (mp4 для iOS, webm для остальных), pre-warmed Audio для unlock'а autoplay, viewport-fit=cover, safe-area-inset, 100dvh вместо 100vh, touch-стили на кнопке записи, 16px шрифт на инпутах
-- [x] **Пакет 2 — PWA.** manifest.json, иконки (180/192/512), apple-mobile-web-app meta-теги, баннер «Add to Home Screen» для iOS Safari, скрипт генерации иконок через sharp
-- [x] **Пакет 3 — Мобильный UI.** Карточки вместо таблиц на узких экранах, touch targets ≥44pt, кнопка записи фиксирована снизу. Icon-above-label nav grid на мобиле.
-- [ ] **Пакет 4 — Финальный полирок.** Хаптика на push-to-talk, prefers-reduced-motion
+- [x] **Lifecycle policy для аудио.** Ежедневный Vercel Cron `/api/cron/cleanup-audio` (03:00 UTC, `vercel.json`) удаляет записи старше 90 дней через Storage API и обнуляет `audio_path` в messages. Заодно ежедневно обращается к БД — защита от авто-паузы Supabase Free tier. Первая версия на pg_cron (`0003`) не работала ни разу и удалена миграцией `0004`.
 
 ---
 
@@ -364,6 +363,12 @@ ELEVENLABS_VOICE_ID=...
 **Pre-warmed Audio для iOS autoplay.** iOS блокирует `audio.play()` если он не вызван в рамках user gesture. Между нажатием кнопки записи и моментом проигрывания ответа бота — несколько async-шагов, формально gesture-связь теряется. Решение: при первом старте записи создаётся и «разогревается» один Audio-элемент тихим WAV, потом переиспользуется для всех ответов в сессии.
 
 ### Гочи Supabase, на которые натыкались
+
+**Free tier засыпает после 7 дней без активности.** Летом 2026 проект ушёл в паузу; пока он спал, DNS-имя `*.supabase.co` не резолвилось и прод падал с `ENOTFOUND`. Защита — ежедневный Vercel Cron, который ходит в БД (см. lifecycle аудио).
+
+**Удалять файлы Storage прямым SQL нельзя.** `DELETE FROM storage.objects` блокируется триггером `storage.protect_delete` («Use the Storage API instead»). Удаление только через Storage API (`supabase.storage.from(...).remove(...)`).
+
+**Миграции применяются вручную** (SQL Editor или `supabase db query --linked -f ...`), таблицы `supabase_migrations.schema_migrations` нет — `supabase db push` не использовать.
 
 **Серая иконка RLS = кэш UI**, а не реальное состояние. `pg_tables.rowsecurity` через SQL — единственный надёжный способ проверки. Cmd+R чинит индикатор.
 
@@ -395,7 +400,7 @@ ELEVENLABS_VOICE_ID=...
 
 - [x] Wake Lock во время сессии
 - [x] Возможность переслушать конкретную user-реплику при просмотре итогов (AudioPlayer на summary, signed URL)
-- [x] Lifecycle policy для аудио в Storage (90 дней, pg_cron миграция 0003)
+- [x] Lifecycle policy для аудио в Storage (90 дней, Vercel Cron `/api/cron/cleanup-audio`)
 - [x] Лимит на длину сессии (25 мин мягкое / 45 мин hard-stop)
 - [ ] Подавать в новый сессионный промпт информацию о повторяющихся ошибках из прошлых сессий
 - [ ] Тренды во времени на /progress v2 (графики ошибок по сессиям) — имеет смысл после месяца-двух данных

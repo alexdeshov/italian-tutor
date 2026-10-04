@@ -19,7 +19,6 @@ export type ConversationState =
   | 'transcribing'
   | 'thinking'
   | 'speaking'
-  | 'error'
 
 export type Message = {
   id: string
@@ -149,7 +148,7 @@ export function ConversationProvider({ sessionId, children }: Props) {
       const res = await fetch('/api/tts', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ text }),
+        body: JSON.stringify({ text, sessionId }),
       })
 
       if (!res.ok) {
@@ -180,7 +179,7 @@ export function ConversationProvider({ sessionId, children }: Props) {
     } finally {
       setState('idle')
     }
-  }, [])
+  }, [sessionId])
 
   // Full pipeline: Whisper → add user msg → GPT-4o → add assistant msg → TTS → play.
   const sendToTranscribe = useCallback(
@@ -188,7 +187,8 @@ export function ConversationProvider({ sessionId, children }: Props) {
       // Guard against empty/corrupt recordings (common on iOS when the stream was reused).
       if (blob.size < 1000) {
         setError('Запись слишком короткая или пустая. Попробуй ещё раз.')
-        setState('error')
+        // Back to idle (not a terminal state) so the record button stays usable.
+        setState('idle')
         return
       }
 
@@ -319,7 +319,7 @@ export function ConversationProvider({ sessionId, children }: Props) {
     } catch (err) {
       cleanupRecording()
       setError(describeMicError(err))
-      setState('error')
+      setState('idle')
     }
   }, [state, cleanupRecording])
 
