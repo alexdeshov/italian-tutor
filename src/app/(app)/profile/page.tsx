@@ -2,6 +2,7 @@ import Link from 'next/link'
 import { redirect } from 'next/navigation'
 import { TrendingUp, Receipt } from 'lucide-react'
 import { createClient } from '@/lib/supabase/server'
+import { toTargetLanguage } from '@/lib/languages'
 import { ProfileForm } from './profile-form'
 import { LogoutButton } from './LogoutButton'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -17,7 +18,7 @@ export default async function ProfilePage() {
 
   const { data: profile } = await supabase
     .from('profiles')
-    .select('name, italian_level')
+    .select('name, italian_level, target_language')
     .eq('id', user.id)
     .single()
 
@@ -36,6 +37,7 @@ export default async function ProfilePage() {
           email={user.email!}
           initialName={profile.name}
           initialLevel={profile.italian_level}
+          initialLanguage={toTargetLanguage(profile.target_language)}
         />
       </div>
 

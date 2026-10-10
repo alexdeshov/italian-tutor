@@ -2,6 +2,7 @@
 
 import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
+import { toTargetLanguage } from '@/lib/languages'
 
 export async function createSession(formData: FormData) {
   const topic = (formData.get('topic') as string | null)?.trim() ?? ''
@@ -15,9 +16,21 @@ export async function createSession(formData: FormData) {
 
   if (!user) redirect('/login')
 
+  // Snapshot the profile language: the session stays in it even if the profile switches later
+  const { data: profile } = await supabase
+    .from('profiles')
+    .select('target_language')
+    .eq('id', user.id)
+    .single()
+
   const { data, error } = await supabase
     .from('sessions')
-    .insert({ profile_id: user.id, topic, status: 'active' })
+    .insert({
+      profile_id: user.id,
+      topic,
+      status: 'active',
+      language: toTargetLanguage(profile?.target_language),
+    })
     .select('id')
     .single()
 

@@ -52,7 +52,8 @@ export default function LoginPage() {
     const supabase = createClient()
     const { error } = await supabase.auth.signInWithOtp({
       email: magicEmail,
-      options: { emailRedirectTo: `${window.location.origin}/auth/callback` },
+      // Users are created by hand in the Dashboard — magic link must not sign up strangers
+      options: { emailRedirectTo: `${window.location.origin}/auth/callback`, shouldCreateUser: false },
     })
 
     setMlLoading(false)
@@ -86,7 +87,7 @@ export default function LoginPage() {
     <div className="min-h-dvh flex items-center justify-center">
       <div className="max-w-sm w-full space-y-6 px-4">
         <div className="space-y-1">
-          <h1 className="text-2xl font-semibold">Italian Tutor</h1>
+          <h1 className="text-2xl font-semibold">Собеседник</h1>
           <p className="text-muted-foreground text-sm">Вход в аккаунт</p>
         </div>
 

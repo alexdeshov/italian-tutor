@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
 import { updateProfile } from './actions'
+import { LANGUAGE_LABEL, TARGET_LANGUAGES, type TargetLanguage } from '@/lib/languages'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -22,12 +23,14 @@ type Props = {
   email: string
   initialName: string | null
   initialLevel: string
+  initialLanguage: TargetLanguage
 }
 
-export function ProfileForm({ email, initialName, initialLevel }: Props) {
+export function ProfileForm({ email, initialName, initialLevel, initialLanguage }: Props) {
   const router = useRouter()
   const [name, setName] = useState(initialName ?? '')
   const [level, setLevel] = useState(initialLevel)
+  const [language, setLanguage] = useState<TargetLanguage>(initialLanguage)
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
 
@@ -39,6 +42,7 @@ export function ProfileForm({ email, initialName, initialLevel }: Props) {
     const fd = new FormData()
     fd.set('name', name)
     fd.set('italian_level', level)
+    fd.set('target_language', language)
     await updateProfile(fd)
 
     setSaving(false)
@@ -70,7 +74,30 @@ export function ProfileForm({ email, initialName, initialLevel }: Props) {
       </div>
 
       <div className="space-y-1.5">
-        <Label htmlFor="level">Italian level (CEFR)</Label>
+        <Label htmlFor="language">Язык для практики</Label>
+        <Select
+          value={language}
+          onValueChange={(v) => setLanguage(v as TargetLanguage)}
+          name="target_language"
+        >
+          <SelectTrigger id="language" className="w-44">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {TARGET_LANGUAGES.map((l) => (
+              <SelectItem key={l} value={l}>
+                {LANGUAGE_LABEL[l]}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        <p className="text-xs text-muted-foreground">
+          Применяется к новым сессиям, прошлые остаются на своём языке.
+        </p>
+      </div>
+
+      <div className="space-y-1.5">
+        <Label htmlFor="level">Уровень (CEFR)</Label>
         <Select value={level} onValueChange={setLevel} name="italian_level">
           <SelectTrigger id="level" className="w-32">
             <SelectValue />

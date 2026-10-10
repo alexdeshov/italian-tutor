@@ -1,6 +1,7 @@
 import Anthropic from '@anthropic-ai/sdk'
 import { createClient } from '@/lib/supabase/server'
-import { buildAnalyzerSystemPrompt } from '@/lib/prompts/analyzer'
+import { buildAnalyzerSystemPrompt, getLanguageName } from '@/lib/prompts/analyzer'
+import { toTargetLanguage } from '@/lib/languages'
 import { logUsage } from '@/lib/usage/logUsage'
 import { calculateClaudeCost } from '@/lib/pricing'
 
@@ -14,8 +15,8 @@ type ErrorItem = {
 }
 
 type VocabItem = {
-  italian: string
-  russian: string
+  term: string
+  translation: string
   note?: string
 }
 
@@ -40,7 +41,7 @@ export async function analyzeSession(sessionId: string): Promise<AnalyzeResult> 
   // Fetch session + profile level (RLS ensures ownership)
   const { data: session } = await supabase
     .from('sessions')
-    .select('id, topic, status, profiles(italian_level)')
+    .select('id, topic, status, language, profiles(italian_level)')
     .eq('id', sessionId)
     .single()
 
@@ -69,6 +70,7 @@ export async function analyzeSession(sessionId: string): Promise<AnalyzeResult> 
     ? session.profiles[0]
     : session.profiles
   const level = (profileData as { italian_level?: string } | null)?.italian_level ?? 'B1'
+  const language = toTargetLanguage(session.language)
 
   // Call Claude Sonnet with forced tool use
   let analysis: AnalysisInput
@@ -78,12 +80,12 @@ export async function analyzeSession(sessionId: string): Promise<AnalyzeResult> 
     const response = await anthropic.messages.create({
       model: 'claude-sonnet-4-6',
       max_tokens: 4096,
-      system: buildAnalyzerSystemPrompt(level, session.topic),
+      system: buildAnalyzerSystemPrompt(language, level, session.topic),
       messages: [{ role: 'user', content: transcriptText }],
       tools: [
         {
           name: 'submit_analysis',
-          description: "Submit the structured analysis of the student's Italian conversation",
+          description: `Submit the structured analysis of the student's ${getLanguageName(language)} conversation`,
           input_schema: {
             type: 'object' as const,
             required: ['errors', 'useful_vocabulary', 'overall_comment', 'level_observation'],
@@ -108,10 +110,10 @@ export async function analyzeSession(sessionId: string): Promise<AnalyzeResult> 
                 type: 'array',
                 items: {
                   type: 'object',
-                  required: ['italian', 'russian'],
+                  required: ['term', 'translation'],
                   properties: {
-                    italian: { type: 'string' },
-                    russian: { type: 'string' },
+                    term: { type: 'string', description: `${getLanguageName(language)} word or phrase` },
+                    translation: { type: 'string', description: 'Russian translation' },
                     note: { type: 'string' },
                   },
                 },

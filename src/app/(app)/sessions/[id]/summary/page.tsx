@@ -10,7 +10,14 @@ import { cn } from '@/lib/utils'
 
 type Props = { params: Promise<{ id: string }> }
 
-type VocabItem = { italian: string; russian: string; note?: string }
+// Analyses before 0005 stored vocabulary as { italian, russian }
+type VocabItem = {
+  term?: string
+  translation?: string
+  italian?: string
+  russian?: string
+  note?: string
+}
 
 type RawMessage = {
   id: string
@@ -172,9 +179,9 @@ export default async function SummaryPage({ params }: Props) {
               <div className="rounded-lg border border-border divide-y divide-border">
                 {vocab.map((item, i) => (
                   <div key={i} className="grid grid-cols-2 gap-4 px-4 py-3 text-sm">
-                    <span className="font-medium">{item.italian}</span>
+                    <span className="font-medium">{item.term ?? item.italian}</span>
                     <span className="text-muted-foreground">
-                      {item.russian}
+                      {item.translation ?? item.russian}
                       {item.note ? ` — ${item.note}` : ''}
                     </span>
                   </div>

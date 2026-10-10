@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { logUsage } from '@/lib/usage/logUsage'
 import { calculateTtsCost } from '@/lib/pricing'
+import { toTargetLanguage } from '@/lib/languages'
 
 export async function POST(request: NextRequest) {
   // 1. Auth
@@ -24,7 +25,20 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Text too long (max 1000 chars)' }, { status: 400 })
   }
 
-  const voiceId = process.env.ELEVENLABS_VOICE_ID
+  // Voice per session language. Without a dedicated English voice the Italian one
+  // still reads English (multilingual model), just with its accent.
+  let language = toTargetLanguage(null)
+  if (typeof sessionId === 'string') {
+    const { data: session } = await supabase
+      .from('sessions')
+      .select('language')
+      .eq('id', sessionId)
+      .single()
+    language = toTargetLanguage(session?.language)
+  }
+
+  const voiceId =
+    (language === 'en' && process.env.ELEVENLABS_VOICE_ID_EN) || process.env.ELEVENLABS_VOICE_ID
   const apiKey = process.env.ELEVENLABS_API_KEY
 
   if (!voiceId || !apiKey) {

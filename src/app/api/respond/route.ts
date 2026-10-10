@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import OpenAI from 'openai'
 import { createClient } from '@/lib/supabase/server'
 import { buildConversationPrompt } from '@/lib/prompts/conversation'
+import { toTargetLanguage } from '@/lib/languages'
 import { logUsage } from '@/lib/usage/logUsage'
 import { calculateChatCost } from '@/lib/pricing'
 
@@ -27,7 +28,7 @@ export async function POST(request: NextRequest) {
   // 3. Fetch session + profile level (RLS ensures ownership)
   const { data: session } = await supabase
     .from('sessions')
-    .select('id, topic, profiles(italian_level)')
+    .select('id, topic, language, profiles(italian_level)')
     .eq('id', sessionId)
     .single()
 
@@ -55,7 +56,11 @@ export async function POST(request: NextRequest) {
     ? session.profiles[0]
     : session.profiles
   const level = (profileData as { italian_level?: string } | null)?.italian_level ?? 'B1'
-  const systemPrompt = buildConversationPrompt(level, session.topic)
+  const systemPrompt = buildConversationPrompt(
+    toTargetLanguage(session.language),
+    level,
+    session.topic,
+  )
 
   // 6. Call GPT-4o
   let content: string

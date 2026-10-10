@@ -67,7 +67,7 @@ export default function AppHeader({ email }: Props) {
       {/* ── Desktop nav: unchanged horizontal layout ────────────────────────── */}
       <div className="hidden md:block">
         <div className="max-w-4xl mx-auto px-4 h-14 flex items-center gap-2">
-          <span className="font-semibold text-sm shrink-0 mr-3">Italian Tutor</span>
+          <span className="font-semibold text-sm shrink-0 mr-3">Собеседник</span>
 
           <nav className="flex items-center gap-1">
             {/* Primary CTA */}

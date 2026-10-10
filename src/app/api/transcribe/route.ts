@@ -3,6 +3,7 @@ import OpenAI from 'openai'
 import { createClient } from '@/lib/supabase/server'
 import { logUsage } from '@/lib/usage/logUsage'
 import { calculateWhisperCost } from '@/lib/pricing'
+import { toTargetLanguage } from '@/lib/languages'
 
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY })
 
@@ -37,6 +38,17 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Missing file or sessionId' }, { status: 400 })
   }
 
+  // Session language drives Whisper's language hint (RLS ensures ownership)
+  const { data: session } = await supabase
+    .from('sessions')
+    .select('language')
+    .eq('id', sessionId)
+    .single()
+
+  if (!session) {
+    return NextResponse.json({ error: 'Session not found' }, { status: 404 })
+  }
+
   // 3. Generate IDs and path
   const messageId = crypto.randomUUID()
   const audioPath = `${user.id}/${sessionId}/${messageId}.${extension}`
@@ -59,7 +71,7 @@ export async function POST(request: NextRequest) {
     const result = await openai.audio.transcriptions.create({
       file,
       model: 'whisper-1',
-      language: 'it',
+      language: toTargetLanguage(session.language),
     })
     transcript = result.text.trim()
   } catch (err) {

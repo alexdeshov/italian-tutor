@@ -13,12 +13,12 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Italian Tutor",
-  description: "Practice Italian conversation with voice",
+  title: "Собеседник",
+  description: "Голосовая практика разговорной речи",
   manifest: "/manifest.json",
   appleWebApp: {
     capable: true,
-    title: "Italian",
+    title: "Собеседник",
     statusBarStyle: "default",
   },
   icons: {
@@ -45,7 +45,7 @@ export default function RootLayout({
 }>) {
   return (
     <html
-      lang="en"
+      lang="ru"
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
     >
       <body className="min-h-full flex flex-col">{children}</body>
