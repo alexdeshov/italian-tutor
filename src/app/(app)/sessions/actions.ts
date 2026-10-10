@@ -16,10 +16,10 @@ export async function createSession(formData: FormData) {
 
   if (!user) redirect('/login')
 
-  // Snapshot the profile language: the session stays in it even if the profile switches later
+  // Snapshot profile settings: the session keeps them even if the profile changes later
   const { data: profile } = await supabase
     .from('profiles')
-    .select('target_language')
+    .select('target_language, instant_feedback')
     .eq('id', user.id)
     .single()
 
@@ -30,6 +30,7 @@ export async function createSession(formData: FormData) {
       topic,
       status: 'active',
       language: toTargetLanguage(profile?.target_language),
+      instant_feedback: profile?.instant_feedback === true,
     })
     .select('id')
     .single()

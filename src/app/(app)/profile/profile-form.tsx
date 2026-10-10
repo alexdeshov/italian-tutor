@@ -24,13 +24,21 @@ type Props = {
   initialName: string | null
   initialLevel: string
   initialLanguage: TargetLanguage
+  initialInstantFeedback: boolean
 }
 
-export function ProfileForm({ email, initialName, initialLevel, initialLanguage }: Props) {
+export function ProfileForm({
+  email,
+  initialName,
+  initialLevel,
+  initialLanguage,
+  initialInstantFeedback,
+}: Props) {
   const router = useRouter()
   const [name, setName] = useState(initialName ?? '')
   const [level, setLevel] = useState(initialLevel)
   const [language, setLanguage] = useState<TargetLanguage>(initialLanguage)
+  const [instantFeedback, setInstantFeedback] = useState(initialInstantFeedback)
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
 
@@ -43,6 +51,7 @@ export function ProfileForm({ email, initialName, initialLevel, initialLanguage 
     fd.set('name', name)
     fd.set('italian_level', level)
     fd.set('target_language', language)
+    fd.set('instant_feedback', String(instantFeedback))
     await updateProfile(fd)
 
     setSaving(false)
@@ -111,6 +120,22 @@ export function ProfileForm({ email, initialName, initialLevel, initialLanguage 
           </SelectContent>
         </Select>
       </div>
+
+      <label className="flex items-start gap-3 cursor-pointer">
+        <input
+          type="checkbox"
+          checked={instantFeedback}
+          onChange={(e) => setInstantFeedback(e.target.checked)}
+          className="mt-0.5 size-4 shrink-0 accent-primary"
+        />
+        <span className="space-y-0.5">
+          <span className="block text-sm font-medium">Мгновенные правки</span>
+          <span className="block text-xs text-muted-foreground">
+            После каждой фразы бот озвучит главную ошибку — правильный вариант и короткое
+            пояснение по-русски. Применяется к новым сессиям; полный разбор в конце остаётся.
+          </span>
+        </span>
+      </label>
 
       <div className="flex items-center gap-3">
         <Button type="submit" disabled={saving}>

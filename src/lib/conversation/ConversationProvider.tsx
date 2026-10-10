@@ -24,6 +24,9 @@ export type Message = {
   id: string
   role: 'user' | 'assistant'
   content: string
+  // Instant feedback on the preceding user turn (assistant messages only)
+  correction?: string | null
+  correction_note?: string | null
 }
 
 export interface ConversationContextValue {
@@ -113,7 +116,7 @@ export function ConversationProvider({ sessionId, children }: Props) {
     const supabase = createClient()
     supabase
       .from('messages')
-      .select('id, role, content')
+      .select('id, role, content, correction, correction_note')
       .eq('session_id', sessionId)
       .order('created_at', { ascending: true })
       .then(({ data }) => {
@@ -228,22 +231,37 @@ export function ConversationProvider({ sessionId, children }: Props) {
       setState('thinking')
       let botContent: string
       let botMessageId: string
+      let correction: string | null = null
+      let correctionNote: string | null = null
       try {
         const res = await fetch('/api/respond', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ sessionId }),
         })
-        const data: { messageId?: string; content?: string; error?: string } =
-          await res.json()
+        const data: {
+          messageId?: string
+          content?: string
+          correction?: string | null
+          correctionNote?: string | null
+          error?: string
+        } = await res.json()
 
         if (!res.ok) throw new Error(data.error ?? 'Ошибка получения ответа')
 
         botMessageId = data.messageId!
         botContent = data.content!
+        correction = data.correction ?? null
+        correctionNote = data.correctionNote ?? null
         setMessages((prev) => [
           ...prev,
-          { id: botMessageId, role: 'assistant', content: botContent },
+          {
+            id: botMessageId,
+            role: 'assistant',
+            content: botContent,
+            correction,
+            correction_note: correctionNote,
+          },
         ])
       } catch (err) {
         setError(err instanceof Error ? err.message : 'Ошибка при получении ответа бота.')
@@ -251,8 +269,12 @@ export function ConversationProvider({ sessionId, children }: Props) {
         return
       }
 
-      // Phase 3: TTS + playback (speakText sets 'speaking' then 'idle')
-      await speakText(botContent)
+      // Phase 3: TTS + playback (speakText sets 'speaking' then 'idle').
+      // Instant feedback goes first, in one clip: corrected phrase, Russian note, then the reply.
+      const spoken = correction
+        ? `${correction}\n${correctionNote ?? ''}\n\n${botContent}`
+        : botContent
+      await speakText(spoken)
     },
     [sessionId, speakText],
   )

@@ -13,7 +13,11 @@ export default async function NewSessionPage() {
   } = await supabase.auth.getUser()
 
   const { data: profile } = user
-    ? await supabase.from('profiles').select('target_language').eq('id', user.id).single()
+    ? await supabase
+        .from('profiles')
+        .select('target_language, instant_feedback')
+        .eq('id', user.id)
+        .single()
     : { data: null }
   const language = toTargetLanguage(profile?.target_language)
 
@@ -30,7 +34,8 @@ export default async function NewSessionPage() {
 
       <h1 className="text-xl font-semibold mb-1">Новая сессия</h1>
       <p className="text-sm text-muted-foreground mb-6">
-        Язык: {LANGUAGE_LABEL[language]} · сменить в{' '}
+        Язык: {LANGUAGE_LABEL[language]}
+        {profile?.instant_feedback ? ' · мгновенные правки' : ''} · сменить в{' '}
         <Link href="/profile" className="underline underline-offset-4 hover:text-foreground">
           профиле
         </Link>

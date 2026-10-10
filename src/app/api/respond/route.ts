@@ -1,12 +1,61 @@
 import { NextRequest, NextResponse } from 'next/server'
 import OpenAI from 'openai'
 import { createClient } from '@/lib/supabase/server'
-import { buildConversationPrompt } from '@/lib/prompts/conversation'
+import {
+  buildConversationPrompt,
+  buildInstantFeedbackInstructions,
+} from '@/lib/prompts/conversation'
 import { toTargetLanguage } from '@/lib/languages'
 import { logUsage } from '@/lib/usage/logUsage'
 import { calculateChatCost } from '@/lib/pricing'
 
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY })
+
+// Instant feedback mode: the same GPT-4o call returns the correction and the reply.
+const FEEDBACK_FORMAT = {
+  type: 'json_schema',
+  json_schema: {
+    name: 'turn',
+    strict: true,
+    schema: {
+      type: 'object',
+      additionalProperties: false,
+      required: ['correction', 'reply'],
+      properties: {
+        correction: {
+          anyOf: [
+            { type: 'null' },
+            {
+              type: 'object',
+              additionalProperties: false,
+              required: ['corrected', 'note_ru'],
+              properties: {
+                corrected: { type: 'string' },
+                note_ru: { type: 'string' },
+              },
+            },
+          ],
+        },
+        reply: { type: 'string' },
+      },
+    },
+  },
+} as const
+
+type FeedbackTurn = {
+  correction: { corrected: string; note_ru: string } | null
+  reply: string
+}
+
+function parseFeedbackTurn(raw: string): FeedbackTurn {
+  try {
+    const parsed = JSON.parse(raw) as FeedbackTurn
+    if (typeof parsed.reply === 'string') return parsed
+  } catch {
+    // fall through — treat the whole output as a plain reply
+  }
+  return { correction: null, reply: raw }
+}
 
 export async function POST(request: NextRequest) {
   // 1. Auth
@@ -28,7 +77,7 @@ export async function POST(request: NextRequest) {
   // 3. Fetch session + profile level (RLS ensures ownership)
   const { data: session } = await supabase
     .from('sessions')
-    .select('id, topic, language, profiles(italian_level)')
+    .select('id, topic, language, instant_feedback, profiles(italian_level)')
     .eq('id', sessionId)
     .single()
 
@@ -56,14 +105,14 @@ export async function POST(request: NextRequest) {
     ? session.profiles[0]
     : session.profiles
   const level = (profileData as { italian_level?: string } | null)?.italian_level ?? 'B1'
-  const systemPrompt = buildConversationPrompt(
-    toTargetLanguage(session.language),
-    level,
-    session.topic,
-  )
+  const instantFeedback = session.instant_feedback === true
+  const systemPrompt =
+    buildConversationPrompt(toTargetLanguage(session.language), level, session.topic) +
+    (instantFeedback ? buildInstantFeedbackInstructions(level) : '')
 
   // 6. Call GPT-4o
   let content: string
+  let correction: FeedbackTurn['correction'] = null
   let promptTokens = 0
   let completionTokens = 0
   try {
@@ -77,9 +126,17 @@ export async function POST(request: NextRequest) {
         })),
       ],
       temperature: 0.8,
-      max_tokens: 200,
+      max_tokens: instantFeedback ? 350 : 200,
+      ...(instantFeedback ? { response_format: FEEDBACK_FORMAT } : {}),
     })
-    content = completion.choices[0]?.message?.content?.trim() ?? ''
+    const raw = completion.choices[0]?.message?.content?.trim() ?? ''
+    if (instantFeedback) {
+      const turn = parseFeedbackTurn(raw)
+      content = turn.reply.trim()
+      correction = turn.correction
+    } else {
+      content = raw
+    }
     promptTokens = completion.usage?.prompt_tokens ?? 0
     completionTokens = completion.usage?.completion_tokens ?? 0
   } catch (err) {
@@ -99,6 +156,8 @@ export async function POST(request: NextRequest) {
     role: 'assistant',
     content,
     audio_path: null,
+    correction: correction?.corrected ?? null,
+    correction_note: correction?.note_ru ?? null,
   })
 
   if (insertError) {
@@ -120,5 +179,10 @@ export async function POST(request: NextRequest) {
     costUsd: calculateChatCost('gpt-4o', promptTokens, completionTokens),
   })
 
-  return NextResponse.json({ messageId, content })
+  return NextResponse.json({
+    messageId,
+    content,
+    correction: correction?.corrected ?? null,
+    correctionNote: correction?.note_ru ?? null,
+  })
 }

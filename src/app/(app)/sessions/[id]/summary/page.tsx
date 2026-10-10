@@ -25,6 +25,8 @@ type RawMessage = {
   content: string
   audio_path: string | null
   created_at: string
+  correction: string | null
+  correction_note: string | null
 }
 
 type MessageWithAudio = RawMessage & { audioUrl: string | null }
@@ -73,7 +75,7 @@ export default async function SummaryPage({ params }: Props) {
       supabase.from('api_usage').select('cost_usd').eq('session_id', id),
       supabase
         .from('messages')
-        .select('id, role, content, audio_path, created_at')
+        .select('id, role, content, audio_path, created_at, correction, correction_note')
         .eq('session_id', id)
         .order('created_at', { ascending: true }),
     ])
@@ -213,6 +215,12 @@ export default async function SummaryPage({ params }: Props) {
                   m.role === 'user' ? 'bg-primary/10 ml-8 md:ml-12' : 'bg-muted mr-8 md:mr-12',
                 )}
               >
+                {m.correction && (
+                  <p className="text-xs text-amber-700 dark:text-amber-300 mb-1">
+                    ✎ {m.correction}
+                    {m.correction_note ? ` — ${m.correction_note}` : ''}
+                  </p>
+                )}
                 <p className="text-sm">{m.content}</p>
                 {m.audioUrl && <AudioPlayer src={m.audioUrl} />}
               </div>

@@ -18,7 +18,7 @@ export default async function ProfilePage() {
 
   const { data: profile } = await supabase
     .from('profiles')
-    .select('name, italian_level, target_language')
+    .select('name, italian_level, target_language, instant_feedback')
     .eq('id', user.id)
     .single()
 
@@ -38,6 +38,7 @@ export default async function ProfilePage() {
           initialName={profile.name}
           initialLevel={profile.italian_level}
           initialLanguage={toTargetLanguage(profile.target_language)}
+          initialInstantFeedback={profile.instant_feedback === true}
         />
       </div>
 

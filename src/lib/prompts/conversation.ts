@@ -63,3 +63,17 @@ function getEnglishLevelInstructions(level: string): string {
   }
   return `Speak as you would with a native speaker. Use any tense, idioms, phrasal verbs and nuance. Don't simplify your language.`
 }
+
+// Appended to the conversation prompt when the session has instant feedback on.
+// The model then answers with JSON { correction, reply } (schema in /api/respond).
+export function buildInstantFeedbackInstructions(level: string): string {
+  return `
+
+INSTANT FEEDBACK MODE
+Besides your reply, check the learner's LAST message only and fill "correction":
+- Pick at most ONE mistake — the most important one for a ${level} learner (grammar, word choice, word order). Ignore punctuation, capitalization and minor slips that a native speaker wouldn't notice.
+- "corrected": the learner's sentence or fragment rewritten correctly, in the language of the conversation, short (one sentence max).
+- "note_ru": why, written in Russian (target-language words only as quotes), max 12 words, plain words (e.g. "Нужен have — это Present Perfect.").
+- If the message has no mistake worth mentioning, set "correction" to null. Don't invent mistakes.
+- "reply" follows all the rules above (including the language rule — "note_ru" is the only Russian part): it continues the conversation naturally and never mentions the mistake.`
+}
