@@ -2,8 +2,10 @@
 // Sources: openai.com/api/pricing, anthropic.com/pricing, elevenlabs.io/pricing
 
 export const PRICING = {
+  // Provider key stays `openai_whisper` (DB enum), models changed over time. Updated Oct 2026.
   openai_whisper: {
-    perMinute: 0.006,
+    'whisper-1': { perMinute: 0.006 },
+    'gpt-4o-transcribe': { perMinute: 0.006 },
   },
   openai_chat: {
     'gpt-4o': { inputPer1M: 2.5, outputPer1M: 10.0 },
@@ -19,8 +21,11 @@ export const PRICING = {
   },
 } as const
 
-export function calculateWhisperCost(seconds: number): number {
-  return (seconds / 60) * PRICING.openai_whisper.perMinute
+export function calculateTranscriptionCost(
+  model: keyof typeof PRICING.openai_whisper,
+  seconds: number,
+): number {
+  return (seconds / 60) * PRICING.openai_whisper[model].perMinute
 }
 
 export function calculateChatCost(

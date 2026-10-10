@@ -48,7 +48,7 @@ WHAT COUNTS AS AN ERROR (use these exact error_type values):
 - "pronunciation" — only if text evidence (e.g., ${pronunciationHint})
 
 WHAT TO IGNORE (NOT errors):
-- Missing punctuation (Whisper transcription is imperfect)
+- Missing punctuation (speech-to-text transcription is imperfect)
 - Acceptable colloquial speech (${colloquialHint})
 - Minor stylistic preferences when multiple correct options exist
 

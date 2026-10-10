@@ -181,7 +181,7 @@ export function ConversationProvider({ sessionId, children }: Props) {
     }
   }, [sessionId])
 
-  // Full pipeline: Whisper → add user msg → GPT-4o → add assistant msg → TTS → play.
+  // Full pipeline: STT → add user msg → GPT-4o → add assistant msg → TTS → play.
   const sendToTranscribe = useCallback(
     async (blob: Blob, durationSeconds: number, extension: string, mimeType: string) => {
       // Guard against empty/corrupt recordings (common on iOS when the stream was reused).

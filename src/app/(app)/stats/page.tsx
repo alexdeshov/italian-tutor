@@ -150,7 +150,7 @@ export default async function StatsPage() {
         </h2>
         <div className="rounded-lg border border-border divide-y divide-border">
           <ProviderRow
-            name="OpenAI Whisper (STT)"
+            name="OpenAI STT (распознавание речи)"
             stats={whisper}
             detail={whisper ? `${Math.round(whisper.inputUnits / 60)} мин аудио` : ''}
           />

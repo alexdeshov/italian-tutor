@@ -2,10 +2,13 @@ import { NextRequest, NextResponse } from 'next/server'
 import OpenAI from 'openai'
 import { createClient } from '@/lib/supabase/server'
 import { logUsage } from '@/lib/usage/logUsage'
-import { calculateWhisperCost } from '@/lib/pricing'
+import { calculateTranscriptionCost } from '@/lib/pricing'
+import { buildTranscriptionPrompt } from '@/lib/prompts/transcription'
 import { toTargetLanguage } from '@/lib/languages'
 
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY })
+
+const STT_MODEL = 'gpt-4o-transcribe'
 
 export async function POST(request: NextRequest) {
   // 1. Auth
@@ -38,7 +41,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Missing file or sessionId' }, { status: 400 })
   }
 
-  // Session language drives Whisper's language hint (RLS ensures ownership)
+  // Session language drives the STT language hint (RLS ensures ownership)
   const { data: session } = await supabase
     .from('sessions')
     .select('language')
@@ -48,6 +51,7 @@ export async function POST(request: NextRequest) {
   if (!session) {
     return NextResponse.json({ error: 'Session not found' }, { status: 404 })
   }
+  const language = toTargetLanguage(session.language)
 
   // 3. Generate IDs and path
   const messageId = crypto.randomUUID()
@@ -65,19 +69,20 @@ export async function POST(request: NextRequest) {
     )
   }
 
-  // 5. Transcribe with Whisper
+  // 5. Transcribe (verbatim — learner mistakes must survive for the analyzer)
   let transcript: string
   try {
     const result = await openai.audio.transcriptions.create({
       file,
-      model: 'whisper-1',
-      language: toTargetLanguage(session.language),
+      model: STT_MODEL,
+      language,
+      prompt: buildTranscriptionPrompt(language),
     })
     transcript = result.text.trim()
   } catch (err) {
-    // Clean up storage on Whisper failure
+    // Clean up storage on STT failure
     await supabase.storage.from('audio').remove([audioPath])
-    const msg = err instanceof Error ? err.message : 'Ошибка Whisper API'
+    const msg = err instanceof Error ? err.message : 'Ошибка распознавания речи'
     return NextResponse.json({ error: msg }, { status: 500 })
   }
 
@@ -112,9 +117,9 @@ export async function POST(request: NextRequest) {
     sessionId,
     provider: 'openai_whisper',
     operation: 'transcribe',
-    model: 'whisper-1',
+    model: STT_MODEL,
     inputUnits: durationSeconds,
-    costUsd: calculateWhisperCost(durationSeconds),
+    costUsd: calculateTranscriptionCost(STT_MODEL, durationSeconds),
   })
 
   return NextResponse.json({ messageId, transcript, audioPath })
